@@ -14,6 +14,7 @@ import { useLanguage } from './contexts/LanguageContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
+import CalibrationToast from './components/CalibrationToast';
 
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
@@ -93,6 +94,7 @@ function AppLayout() {
       <div className="app-main">
 
         <Header title={headerTitle} />
+        <CalibrationToast />
 
         <Routes>
 

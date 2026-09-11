@@ -21,10 +21,14 @@ import { projects, agencies } from '../../data/mockData';
 import { calculateRiskScore } from '../../data/aiEngine';
 import SpeakerButton from '../../components/SpeakerButton';
 import EvidenceDrawer from '../../components/EvidenceDrawer';
+import { useLanguage } from '../../contexts/LanguageContext';
+import { useCaseContext } from '../../contexts/CaseContext';
 
 export default function RiskProfile() {
   const { id = 'PRJ002' } = useParams();
   const navigate = useNavigate();
+  const { t } = useLanguage();
+  const { attachNode } = useCaseContext();
 
   const p =
     projects.find((x) => x.id === id) ||
@@ -687,7 +691,10 @@ export default function RiskProfile() {
         node={selectedNode}
         isOpen={drawerOpen}
         onClose={() => setDrawerOpen(false)}
-        onAttach={(n) => console.log('Attaching node to docket:', n.id)}
+        onAttach={(n) => {
+          attachNode(p.id, n.id, n.value || n.id);
+          setDrawerOpen(false);
+        }}
         agency={agency}
         project={p}
         relatedWork={relatedWork}

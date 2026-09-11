@@ -21,9 +21,11 @@ import CalibrationToast from '../../components/CalibrationToast';
 import { useCaseContext } from '../../contexts/CaseContext';
 import { Clock3 } from 'lucide-react';
 import { calculateRiskScore } from '../../data/aiEngine';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 export default function InvestigationCentre() {
   const { user, getRoleLabel } = useAuth();
+  const { t } = useLanguage();
 
   const [selected, setSelected] = useState('PRJ002');
   const [outcome, setOutcome] = useState('');
@@ -138,11 +140,10 @@ export default function InvestigationCentre() {
             {investigatorContext.toUpperCase()}
           </div>
 
-          <h2>Investigation Centre</h2>
+          <h2>{t('inv_title')}</h2>
 
           <p>
-            Act on assigned cases, collect evidence, verify on the
-            ground and record the outcome.
+            {t('inv_subtitle')}
           </p>
         </div>
 
@@ -426,9 +427,7 @@ export default function InvestigationCentre() {
                 <ShieldAlert size={15} />
 
                 <span>
-                  These are AI-generated risk signals.
-                  They support investigation but do not
-                  independently establish fraud.
+                  {t('disclaimer_full')}
                 </span>
 
               </div>
@@ -936,7 +935,11 @@ export default function InvestigationCentre() {
                   <div>
                     <b>{entry.action}</b>
                     <p>{entry.note}</p>
-                    <small>{new Date(entry.timestamp).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })} · {entry.officerId}</small>
+                    <small>
+                      {new Date(entry.timestamp).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
+                      {' · '}{entry.officerName || 'System'}
+                      {entry.hash && <code style={{ marginLeft: 6, fontSize: 10, color: '#78716c' }}>#{entry.hash}</code>}
+                    </small>
                   </div>
                 </div>
               ))}

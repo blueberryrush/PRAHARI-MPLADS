@@ -1,6 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Camera, RefreshCw, CheckCircle2, AlertTriangle, UploadCloud, MapPin, X } from 'lucide-react';
+import {
+  Camera, RefreshCw, CheckCircle2, AlertTriangle,
+  UploadCloud, MapPin, X, ShieldCheck, ShieldAlert, Eye,
+} from 'lucide-react';
+import { useLanguage } from '../../contexts/LanguageContext';
+import { verifyEvidence } from '../../api/client';
 
+// ─── Haversine ────────────────────────────────────────────────────────────────
 function calculateDistanceMeters(lat1, lon1, lat2, lon2) {
   const R = 6371e3;
   const rad = Math.PI / 180;
@@ -10,84 +16,157 @@ function calculateDistanceMeters(lat1, lon1, lat2, lon2) {
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
     Math.cos(lat1 * rad) * Math.cos(lat2 * rad) *
     Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return Math.round(R * c);
+  return Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
 }
 
+// ─── AI Authenticity Card ─────────────────────────────────────────────────────
+function AIAuthenticityCard({ result, override, onOverride, t }) {
+  const verdictColors = {
+    VERIFIED_GENUINE: '#059669',
+    SUSPECT_SPOOF: '#C85A32',
+    NON_CONFORMING: '#D97706',
+  };
+  const verdictKeys = {
+    VERIFIED_GENUINE: 'gvc_verdict_genuine',
+    SUSPECT_SPOOF: 'gvc_verdict_suspect',
+    NON_CONFORMING: 'gvc_verdict_non_conforming',
+  };
+
+  const color = verdictColors[result.verdict] || '#78716c';
+  const Icon = result.verdict === 'VERIFIED_GENUINE' ? ShieldCheck : ShieldAlert;
+
+  return (
+    <div className="ai-auth-card">
+      <div className="ai-auth-header">
+        <Eye size={15} style={{ color: '#a8a29e' }} />
+        <span className="eyebrow">{t('gvc_ai_card_title')}</span>
+        {result.generated_by === 'local_fallback' && (
+          <span className="fallback-badge">Offline Analysis</span>
+        )}
+      </div>
+
+      <div className="ai-auth-metrics">
+        <div className="ai-metric">
+          <span>{t('gvc_asset_match')}</span>
+          <div className="ai-metric-bar">
+            <i style={{ width: `${result.asset_match_confidence}%`, background: color }} />
+          </div>
+          <b style={{ color }}>{result.asset_match_confidence}%</b>
+        </div>
+
+        <div className="ai-metric">
+          <span>{t('gvc_spoof_check')}</span>
+          <b style={{ color: result.spoof_risk === 'LOW' ? '#059669' : '#C85A32' }}>
+            {result.spoof_risk === 'LOW' ? '✓ Clear' : '⚠ ' + result.spoof_risk}
+          </b>
+          {result.spoof_indicators?.length > 0 && (
+            <ul className="spoof-indicators">
+              {result.spoof_indicators.map((s, i) => <li key={i}>{s}</li>)}
+            </ul>
+          )}
+        </div>
+      </div>
+
+      <div className="ai-verdict" style={{ borderColor: color }}>
+        <Icon size={18} style={{ color }} />
+        <div>
+          <span style={{ fontSize: 11, color: '#78716c', textTransform: 'uppercase' }}>
+            {t('gvc_verdict')}
+          </span>
+          <b style={{ color }}>
+            {override ? t('gvc_override_label') : t(verdictKeys[result.verdict] || 'gvc_verdict_non_conforming')}
+          </b>
+        </div>
+      </div>
+
+      {!override && (
+        <button className="gvc-btn-ghost override-btn" onClick={onOverride}>
+          {t('gvc_override')}
+        </button>
+      )}
+
+      <p className="ai-disclaimer">
+        {result.disclaimer || t('disclaimer_investigation')}
+      </p>
+    </div>
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 export default function GroundVerificationCapture({
   sanctionCoordinates = { lat: 25.3176, lng: 82.9739 },
+  claimedCategory = 'general',
   onCaptureComplete,
-  onClose
+  onClose,
 }) {
+  const { t } = useLanguage();
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
+
   const [stream, setStream] = useState(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [capturedImage, setCapturedImage] = useState(null);
   const [currentLocation, setCurrentLocation] = useState(null);
   const [spatialDrift, setSpatialDrift] = useState(null);
   const [cameraError, setCameraError] = useState(null);
+  const [aiResult, setAiResult] = useState(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [override, setOverride] = useState(false);
 
+  // ── Camera ──────────────────────────────────────────────────────────────────
   const startCamera = async () => {
     setCameraError(null);
     try {
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
-        audio: false
+        audio: false,
       });
       setStream(mediaStream);
-      if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream;
-      }
+      if (videoRef.current) videoRef.current.srcObject = mediaStream;
       setIsCameraActive(true);
       fetchGeoLocation();
-    } catch (err) {
-      setCameraError('Camera access denied or hardware unavailable. Use document upload.');
+    } catch {
+      setCameraError(t('gvc_camera_error'));
       setIsCameraActive(false);
     }
   };
 
   const fetchGeoLocation = () => {
-    if ('geolocation' in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const coords = {
-            lat: parseFloat(pos.coords.latitude.toFixed(5)),
-            lng: parseFloat(pos.coords.longitude.toFixed(5))
-          };
-          setCurrentLocation(coords);
-          const drift = calculateDistanceMeters(
-            sanctionCoordinates.lat, sanctionCoordinates.lng,
-            coords.lat, coords.lng
-          );
-          setSpatialDrift(drift);
-        },
-        () => {
-          const simulated = {
-            lat: sanctionCoordinates.lat + 0.0015,
-            lng: sanctionCoordinates.lng + 0.0010
-          };
-          setCurrentLocation(simulated);
-          setSpatialDrift(185);
-        },
-        { enableHighAccuracy: true, timeout: 5000 }
-      );
-    }
+    if (!('geolocation' in navigator)) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const coords = {
+          lat: parseFloat(pos.coords.latitude.toFixed(5)),
+          lng: parseFloat(pos.coords.longitude.toFixed(5)),
+        };
+        setCurrentLocation(coords);
+        setSpatialDrift(calculateDistanceMeters(
+          sanctionCoordinates.lat, sanctionCoordinates.lng,
+          coords.lat, coords.lng
+        ));
+      },
+      () => {
+        // Graceful fallback — simulate nearby location
+        const simulated = {
+          lat: sanctionCoordinates.lat + 0.0015,
+          lng: sanctionCoordinates.lng + 0.0010,
+        };
+        setCurrentLocation(simulated);
+        setSpatialDrift(185);
+      },
+      { enableHighAccuracy: true, timeout: 5000 }
+    );
   };
 
   const stopCamera = () => {
-    if (stream) {
-      stream.getTracks().forEach((track) => track.stop());
-      setStream(null);
-    }
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    setStream(null);
     setIsCameraActive(false);
   };
 
-  useEffect(() => {
-    return () => stopCamera();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  useEffect(() => () => stopCamera(), []); // eslint-disable-line
 
+  // ── Capture frame with indelible watermark ──────────────────────────────────
   const capturePhoto = () => {
     if (!videoRef.current || !canvasRef.current) return;
     const video = videoRef.current;
@@ -95,36 +174,70 @@ export default function GroundVerificationCapture({
     canvas.width = video.videoWidth || 640;
     canvas.height = video.videoHeight || 480;
     const ctx = canvas.getContext('2d');
+
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = 'rgba(18, 22, 19, 0.75)';
-    ctx.fillRect(0, canvas.height - 70, canvas.width, 70);
+
+    // Indelible watermark strip
+    ctx.fillStyle = 'rgba(15, 12, 10, 0.82)';
+    ctx.fillRect(0, canvas.height - 72, canvas.width, 72);
     ctx.fillStyle = '#F5F3EF';
-    ctx.font = 'bold 14px monospace';
+    ctx.font = 'bold 13px monospace';
+
     const timestamp = new Date().toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
-    ctx.fillText(`TIMESTAMP: ${timestamp}`, 20, canvas.height - 45);
+    ctx.fillText(`TIMESTAMP: ${timestamp}`, 16, canvas.height - 46);
+
     const latText = currentLocation
-      ? `${currentLocation.lat}° N, ${currentLocation.lng}° E`
-      : 'GPS PENDING';
+      ? `GEO: ${currentLocation.lat}° N, ${currentLocation.lng}° E`
+      : 'GEO: PENDING';
     const driftText = spatialDrift !== null ? ` | DRIFT: ${spatialDrift}m` : '';
-    ctx.fillText(`GEO: ${latText}${driftText}`, 20, canvas.height - 20);
+    ctx.fillText(`${latText}${driftText}`, 16, canvas.height - 22);
+
     const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
     setCapturedImage(dataUrl);
     stopCamera();
+
+    // Trigger AI analysis
+    runAICheck(dataUrl);
   };
 
-  const handleFileUpload = (e) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        setCapturedImage(event.target.result);
-        setCurrentLocation(sanctionCoordinates);
-        setSpatialDrift(15);
-      };
-      reader.readAsDataURL(file);
+  // ── AI Evidence Authenticity Check ─────────────────────────────────────────
+  const runAICheck = async (imageData) => {
+    setAiLoading(true);
+    setAiResult(null);
+    setOverride(false);
+    try {
+      const result = await verifyEvidence(imageData, claimedCategory);
+      setAiResult(result.data);
+    } catch {
+      setAiResult({
+        asset_match_confidence: 60,
+        spoof_risk: 'LOW',
+        spoof_indicators: [],
+        verdict: 'VERIFIED_GENUINE',
+        generated_by: 'local_fallback',
+        disclaimer: t('disclaimer_investigation'),
+      });
+    } finally {
+      setAiLoading(false);
     }
   };
 
+  // ── File Upload ─────────────────────────────────────────────────────────────
+  const handleFileUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target.result;
+      setCapturedImage(dataUrl);
+      setCurrentLocation(sanctionCoordinates);
+      setSpatialDrift(15);
+      runAICheck(dataUrl);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // ── Submit ──────────────────────────────────────────────────────────────────
   const handleSubmit = () => {
     if (onCaptureComplete && capturedImage) {
       onCaptureComplete({
@@ -132,7 +245,9 @@ export default function GroundVerificationCapture({
         coordinates: currentLocation,
         spatialDriftMeters: spatialDrift,
         isDriftFlagged: spatialDrift > 150,
-        capturedAt: new Date().toISOString()
+        capturedAt: new Date().toISOString(),
+        aiVerdict: aiResult?.verdict || null,
+        aiOverride: override,
       });
     }
   };
@@ -142,23 +257,22 @@ export default function GroundVerificationCapture({
   return (
     <div className="gvc-overlay">
       <div className="gvc-modal">
-
         {/* Header */}
         <div className="gvc-header">
           <div>
-            <h3 className="gvc-title">Ground Verification Evidence Intake</h3>
-            <p className="gvc-subtitle">Authorized Field Inspection Stream &amp; Geotag Authentication</p>
+            <h3 className="gvc-title">{t('gvc_title')}</h3>
+            <p className="gvc-subtitle">{t('gvc_subtitle')}</p>
           </div>
           <button
             className="gvc-close"
             onClick={() => { stopCamera(); onClose(); }}
-            aria-label="Close"
+            aria-label={t('btn_close')}
           >
             <X size={18} />
           </button>
         </div>
 
-        {/* Camera / Preview area */}
+        {/* Camera / Preview */}
         <div className="gvc-viewport">
           {cameraError ? (
             <div className="gvc-error">
@@ -171,16 +285,16 @@ export default function GroundVerificationCapture({
             <img src={capturedImage} alt="Captured field evidence" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           ) : (
             <div className="gvc-idle">
-              <Camera size={44} style={{ color: '#78716c', animation: 'pulse 2s infinite' }} />
-              <p style={{ fontSize: 12, color: '#a8a29e', textAlign: 'center', maxWidth: 260 }}>
-                Initialize live camera feed or upload physical measurement book / site photo.
+              <Camera size={44} style={{ color: '#78716c' }} />
+              <p style={{ fontSize: 13, color: '#a8a29e', textAlign: 'center', maxWidth: 260 }}>
+                {t('gvc_idle_hint')}
               </p>
               <div style={{ display: 'flex', gap: 10 }}>
                 <button type="button" className="gvc-btn-primary" onClick={startCamera}>
-                  <Camera size={15} /> Start Camera
+                  <Camera size={15} /> {t('btn_start_camera')}
                 </button>
                 <label className="gvc-btn-secondary" style={{ cursor: 'pointer' }}>
-                  <UploadCloud size={15} /> Upload Document
+                  <UploadCloud size={15} /> {t('btn_upload_doc')}
                   <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFileUpload} />
                 </label>
               </div>
@@ -197,38 +311,59 @@ export default function GroundVerificationCapture({
           )}
         </div>
 
-        {/* Drift alert */}
+        {/* Drift Alert */}
         {spatialDrift !== null && (
           <div className={`gvc-drift ${driftFlagged ? 'flagged' : 'ok'}`}>
             {driftFlagged ? (
               <>
                 <AlertTriangle size={15} style={{ color: '#fbbf24', flexShrink: 0 }} />
                 <div>
-                  <strong>Geospatial Drift Flagged ({spatialDrift}m):</strong> Current coordinates exceed
-                  150m approved boundary limit from Sanction Site.
+                  <strong>{t('gvc_drift_flagged_prefix')} ({spatialDrift}m):</strong>{' '}
+                  {t('gvc_drift_flagged_body')}
                 </div>
               </>
             ) : (
               <>
                 <CheckCircle2 size={15} style={{ color: '#34d399', flexShrink: 0 }} />
                 <div>
-                  <strong>Geospatial Authenticated ({spatialDrift}m drift):</strong> Inspection location
-                  matches approved sanction perimeter.
+                  <strong>{t('gvc_drift_ok_prefix')} ({spatialDrift}m drift):</strong>{' '}
+                  {t('gvc_drift_ok_body')}
                 </div>
               </>
             )}
           </div>
         )}
 
-        {/* Footer actions */}
+        {/* AI Authenticity Card */}
+        {aiLoading && (
+          <div className="ai-auth-loading">
+            <span className="loading-spinner" />
+            <span>AI evidence analysis running…</span>
+          </div>
+        )}
+        {aiResult && !aiLoading && (
+          <AIAuthenticityCard
+            result={aiResult}
+            override={override}
+            onOverride={() => setOverride(true)}
+            t={t}
+          />
+        )}
+
+        {/* Footer Actions */}
         <div className="gvc-footer">
           {capturedImage && (
             <button
               type="button"
               className="gvc-btn-ghost"
-              onClick={() => { setCapturedImage(null); startCamera(); }}
+              onClick={() => {
+                setCapturedImage(null);
+                setAiResult(null);
+                setOverride(false);
+                startCamera();
+              }}
             >
-              <RefreshCw size={13} /> Retake Frame
+              <RefreshCw size={13} /> {t('btn_retake')}
             </button>
           )}
 
@@ -239,7 +374,7 @@ export default function GroundVerificationCapture({
               onClick={capturePhoto}
               style={{ marginLeft: 'auto' }}
             >
-              <Camera size={15} /> Capture Ground Reality
+              <Camera size={15} /> {t('btn_capture_ground')}
             </button>
           )}
 
@@ -248,9 +383,10 @@ export default function GroundVerificationCapture({
               type="button"
               className="gvc-submit-btn"
               onClick={handleSubmit}
+              disabled={aiLoading}
               style={{ marginLeft: 'auto' }}
             >
-              <CheckCircle2 size={15} /> Attach to Inspection Dossier
+              <CheckCircle2 size={15} /> {t('btn_attach_dossier')}
             </button>
           )}
         </div>

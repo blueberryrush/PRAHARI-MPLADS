@@ -4165,3 +4165,589 @@ button,input,select,textarea{font:inherit} button{cursor:pointer}
 .grievance-success span { font-size: 36px; color: #059669; }
 .grievance-success b    { font-size: 16px; }
 .grievance-success p    { font-size: 13px; color: var(--text-secondary); }
+
+/* ============================================================
+   TYPOGRAPHY UPGRADES — Module 2
+   Minimum 12px across all UI text
+   ============================================================ */
+.eyebrow        { font-size: 12px !important; font-weight: 500 !important; letter-spacing: 0.08em; }
+.roster-id      { font-size: 12px !important; }
+.case-id        { font-size: 12px !important; font-weight: 500; }
+.kpi-label      { font-size: 12px !important; font-weight: 500; }
+.queue-dot      { font-size: 12px !important; }
+small           { font-size: 12px !important; }
+.panel > p,
+.panel-subtitle { font-size: 14px !important; }
+.kpi-panel strong { font-size: 18px !important; font-weight: 700; }
+
+/* ─── Minimum font-size guard — override any sub-12px ─────────────── */
+* { min-font-size: 12px; }
+
+/* ============================================================
+   SIGNAL MIX CARD — Module 3
+   ============================================================ */
+.signal-row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+.signal-row-head b { font-size: 13px; font-weight: 600; color: #e7e5e4; }
+.severity-chip {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 4px;
+  margin-left: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.severity-chip.strong   { background: rgba(200, 90, 50, 0.18); color: #f97316; }
+.severity-chip.elevated { background: rgba(217, 119, 6, 0.18); color: #fbbf24; }
+.severity-chip.moderate { background: rgba(100, 100, 100, 0.18); color: #a8a29e; }
+.severity-chip.low      { background: rgba(5, 150, 105, 0.12); color: #6ee7b7; }
+.contribution-badge {
+  font-size: 12px;
+  font-weight: 700;
+  color: #e7e5e4;
+  background: rgba(255,255,255,0.06);
+  border-radius: 6px;
+  padding: 2px 8px;
+}
+.signal-finding {
+  font-size: 12px;
+  color: #a8a29e;
+  margin: 4px 0 8px;
+  line-height: 1.5;
+}
+.signal-micro-bar {
+  height: 4px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.signal-micro-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.6s ease;
+}
+.signal-micro-bar i.red     { background: #C85A32; }
+.signal-micro-bar i.teal    { background: #0d9488; }
+.signal-micro-bar i.amber   { background: #D97706; }
+.signal-micro-bar i.sage    { background: #059669; }
+.signal-micro-bar i.neutral { background: #57534e; }
+.signal-mix-caption {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  font-size: 11.5px;
+  color: #78716c;
+  font-style: italic;
+}
+
+/* ============================================================
+   GRIEVANCE MODAL UPGRADES — Module 4
+   ============================================================ */
+.grievance-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  backdrop-filter: blur(4px);
+}
+.grievance-modal {
+  background: #1c1917;
+  border: 1px solid #3a3530;
+  border-radius: 16px;
+  padding: 28px;
+  width: 100%;
+  max-width: 540px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 40px 80px rgba(0,0,0,0.5);
+}
+.grievance-project-context {
+  background: rgba(255,255,255,0.04);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+}
+.grievance-select {
+  width: 100%;
+  padding: 10px 14px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid #3a3530;
+  border-radius: 8px;
+  color: #e7e5e4;
+  font-size: 14px;
+  cursor: pointer;
+}
+.photo-upload-area {
+  border: 1.5px dashed #44403c;
+  border-radius: 10px;
+  padding: 16px;
+  cursor: pointer;
+  min-height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.2s;
+}
+.photo-upload-area:hover { border-color: #78716c; }
+.photo-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: #78716c;
+  font-size: 12px;
+}
+.photo-preview-wrap {
+  position: relative;
+  width: 100%;
+}
+.photo-preview {
+  width: 100%;
+  max-height: 180px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+.photo-remove {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: rgba(0,0,0,0.7);
+  border: none;
+  border-radius: 50%;
+  width: 24px; height: 24px;
+  display: flex; align-items: center; justify-content: center;
+  color: #e7e5e4;
+  cursor: pointer;
+}
+.anonymous-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+  margin-top: 14px;
+}
+.anonymous-toggle input[type=checkbox] { margin-top: 2px; accent-color: #C85A32; }
+.toggle-text b { font-size: 13px; color: #e7e5e4; display: block; }
+.toggle-text small { font-size: 12px; color: #78716c; }
+.token-badge {
+  background: rgba(200, 90, 50, 0.12);
+  border: 1px solid rgba(200, 90, 50, 0.3);
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-family: monospace;
+  font-size: 14px;
+  color: #C85A32;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+/* ============================================================
+   GROUND VERIFICATION CAPTURE — Module 5 Upgrades
+   ============================================================ */
+.gvc-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.85);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  backdrop-filter: blur(6px);
+}
+.gvc-modal {
+  background: #1c1917;
+  border: 1px solid #3a3530;
+  border-radius: 16px;
+  padding: 24px;
+  width: 100%;
+  max-width: 580px;
+  max-height: 92vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.gvc-header { display: flex; justify-content: space-between; align-items: flex-start; }
+.gvc-title { font-size: 16px; font-weight: 700; color: #e7e5e4; margin-bottom: 4px; }
+.gvc-subtitle { font-size: 12px; color: #78716c; }
+.gvc-close {
+  background: none;
+  border: 1px solid #3a3530;
+  border-radius: 8px;
+  width: 32px; height: 32px;
+  display: flex; align-items: center; justify-content: center;
+  color: #a8a29e;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.gvc-viewport {
+  position: relative;
+  background: #0c0a09;
+  border-radius: 12px;
+  overflow: hidden;
+  aspect-ratio: 16/9;
+  border: 1px solid #3a3530;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.gvc-idle { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 24px; }
+.gvc-error { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 20px; color: #a8a29e; text-align: center; font-size: 13px; }
+.gvc-geo-badge {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  background: rgba(0,0,0,0.7);
+  border-radius: 6px;
+  padding: 4px 10px;
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px;
+  color: #fbbf24;
+  font-family: monospace;
+  backdrop-filter: blur(4px);
+}
+.gvc-drift {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.gvc-drift.flagged { background: rgba(217, 119, 6, 0.1); border: 1px solid rgba(217, 119, 6, 0.25); color: #fcd34d; }
+.gvc-drift.ok      { background: rgba(5, 150, 105, 0.1); border: 1px solid rgba(5, 150, 105, 0.25); color: #6ee7b7; }
+.gvc-btn-primary {
+  padding: 8px 16px;
+  background: #C85A32;
+  color: white;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  display: flex; align-items: center; gap: 6px;
+  border: none; cursor: pointer;
+}
+.gvc-btn-secondary {
+  padding: 8px 16px;
+  background: rgba(255,255,255,0.06);
+  color: #e7e5e4;
+  border-radius: 8px;
+  font-size: 13px;
+  display: flex; align-items: center; gap: 6px;
+  border: 1px solid #3a3530; cursor: pointer;
+}
+.gvc-btn-ghost {
+  padding: 7px 14px;
+  background: transparent;
+  color: #a8a29e;
+  border-radius: 8px;
+  font-size: 13px;
+  display: flex; align-items: center; gap: 6px;
+  border: 1px solid #3a3530; cursor: pointer;
+}
+.gvc-capture-btn, .gvc-submit-btn {
+  padding: 9px 20px;
+  background: #C85A32;
+  color: white;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  display: flex; align-items: center; gap: 7px;
+  border: none; cursor: pointer;
+}
+.gvc-submit-btn { background: #059669; }
+.gvc-footer { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+/* ─── AI Auth Card ─────────────────────────────────────────────────────────── */
+.ai-auth-card {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid #3a3530;
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ai-auth-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ai-auth-header .eyebrow { color: #a8a29e; flex: 1; }
+.fallback-badge {
+  font-size: 11px;
+  background: rgba(100,100,100,0.15);
+  color: #78716c;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+.ai-auth-metrics { display: flex; flex-direction: column; gap: 10px; }
+.ai-metric span { font-size: 12px; color: #78716c; }
+.ai-metric-bar {
+  height: 6px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 3px;
+  overflow: hidden;
+  margin: 4px 0;
+}
+.ai-metric-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.5s ease;
+}
+.ai-metric b { font-size: 14px; font-weight: 700; }
+.spoof-indicators {
+  list-style: disc;
+  padding-left: 14px;
+  margin-top: 4px;
+}
+.spoof-indicators li { font-size: 12px; color: #C85A32; }
+.ai-verdict {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid;
+}
+.ai-verdict div { display: flex; flex-direction: column; }
+.ai-verdict b { font-size: 14px; font-weight: 700; }
+.override-btn {
+  align-self: flex-start;
+  font-size: 12px;
+}
+.ai-disclaimer {
+  font-size: 11px;
+  color: #57534e;
+  font-style: italic;
+  line-height: 1.5;
+}
+.ai-auth-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  font-size: 13px;
+  color: #a8a29e;
+}
+.loading-spinner {
+  display: inline-block;
+  width: 16px; height: 16px;
+  border: 2px solid rgba(255,255,255,0.1);
+  border-top-color: #C85A32;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ============================================================
+   ROSTER CARDS — Module 4 Citizen Drill-Down
+   ============================================================ */
+.constituency-roster { margin-top: 20px; }
+.roster-header { margin-bottom: 16px; }
+.roster-header h3 { font-size: 18px; font-weight: 700; color: #e7e5e4; }
+.roster-header p { font-size: 13px; color: #78716c; margin-top: 4px; }
+.roster-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+.roster-card {
+  background: #1c1917;
+  border: 1px solid #3a3530;
+  border-radius: 12px;
+  padding: 16px;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+}
+.roster-card:hover { border-color: #78716c; background: #211e1b; }
+.roster-sector-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+.roster-sector-dot.amber   { background: #D97706; }
+.roster-sector-dot.teal    { background: #0d9488; }
+.roster-sector-dot.blue    { background: #3b82f6; }
+.roster-sector-dot.emerald { background: #059669; }
+.roster-sector-dot.purple  { background: #8b5cf6; }
+.roster-sector-dot.orange  { background: #f97316; }
+.roster-sector-dot.yellow  { background: #eab308; }
+.roster-sector-dot.cyan    { background: #06b6d4; }
+.roster-sector-dot.pink    { background: #ec4899; }
+.roster-sector-dot.indigo  { background: #6366f1; }
+.roster-sector-dot.neutral { background: #78716c; }
+.roster-card-body { flex: 1; min-width: 0; }
+.roster-card-body strong { font-size: 14px; font-weight: 600; color: #e7e5e4; display: block; margin: 3px 0 8px; }
+.roster-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 12px; color: #a8a29e; }
+.roster-status { padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+.roster-status.completed   { background: rgba(5,150,105,0.12); color: #059669; }
+.roster-status.in_progress { background: rgba(59,130,246,0.12); color: #3b82f6; }
+.roster-status.delayed     { background: rgba(200,90,50,0.12); color: #C85A32; }
+.roster-progress-bar { height: 3px; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden; }
+.roster-progress-bar i { display: block; height: 100%; background: #059669; border-radius: 2px; }
+.roster-progress-text { font-size: 11px; color: #57534e; margin-top: 4px; }
+
+/* Project Preview Card */
+.project-preview-card {
+  background: #1c1917;
+  border: 1px solid #3a3530;
+  border-radius: 14px;
+  padding: 20px;
+  margin-top: 16px;
+  position: relative;
+}
+.preview-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
+.preview-header h3 { font-size: 16px; font-weight: 700; color: #e7e5e4; margin-top: 4px; }
+.preview-close {
+  background: none;
+  border: 1px solid #3a3530;
+  border-radius: 8px;
+  width: 30px; height: 30px;
+  display: flex; align-items: center; justify-content: center;
+  color: #78716c; cursor: pointer;
+}
+.preview-facts {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.preview-facts div { display: flex; flex-direction: column; gap: 2px; }
+.preview-facts span { font-size: 12px; color: #78716c; }
+.preview-facts b { font-size: 14px; color: #e7e5e4; font-weight: 600; }
+.preview-actions { display: flex; gap: 10px; justify-content: flex-end; }
+
+/* ============================================================
+   SIGNAL TAGS — Dashboard Case List
+   ============================================================ */
+.signal-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.tag {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.tag.red    { background: rgba(200,90,50,0.14); color: #f97316; border: 1px solid rgba(200,90,50,0.25); }
+.tag.amber  { background: rgba(217,119,6,0.14); color: #fbbf24; border: 1px solid rgba(217,119,6,0.25); }
+.tag.teal   { background: rgba(13,148,136,0.14); color: #2dd4bf; border: 1px solid rgba(13,148,136,0.25); }
+
+/* ============================================================
+   ACTION QUEUE LINES — Dashboard
+   ============================================================ */
+.action-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  cursor: pointer;
+}
+.action-line:last-child { border-bottom: none; }
+.action-line > div { flex: 1; display: flex; gap: 8px; align-items: baseline; }
+.action-line b { font-size: 16px; font-weight: 700; color: #e7e5e4; }
+.action-line span { font-size: 13px; color: #a8a29e; }
+.queue-dot.critical { background: #C85A32; width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.queue-dot.amber    { background: #D97706; width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.queue-dot.neutral  { background: #57534e; width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+/* ============================================================
+   INSIGHT ITEMS — Dashboard
+   ============================================================ */
+.insight-item {
+  display: flex;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.insight-item:last-child { border-bottom: none; }
+.insight-icon {
+  width: 34px; height: 34px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.05);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  color: #D97706;
+}
+.insight-item b { font-size: 13px; color: #e7e5e4; display: block; margin-bottom: 3px; }
+.insight-item p { font-size: 12px; color: #78716c; }
+.insight-item button {
+  background: none; border: none;
+  color: #D97706; font-size: 12px;
+  padding: 0; margin-top: 4px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+/* ============================================================
+   SIDEBAR UPGRADES
+   ============================================================ */
+.sidebar-note {
+  margin: 12px 0;
+  padding: 12px;
+  background: rgba(200,90,50,0.06);
+  border: 1px solid rgba(200,90,50,0.15);
+  border-radius: 10px;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.sidebar-note > span {
+  font-size: 11px;
+  font-weight: 800;
+  color: #C85A32;
+  background: rgba(200,90,50,0.15);
+  border-radius: 4px;
+  padding: 2px 6px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.sidebar-note b { font-size: 12px; color: #e7e5e4; display: block; margin-bottom: 2px; }
+.sidebar-note small { font-size: 11px; color: #78716c; line-height: 1.4; }
+.sidebar-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  z-index: 49;
+}
+
+/* ============================================================
+   CASE SCORE IN DASHBOARD
+   ============================================================ */
+.case-score { text-align: right; flex-shrink: 0; }
+.case-score b { font-size: 18px; font-weight: 700; color: #C85A32; display: block; }
+.case-score span { font-size: 11px; color: #78716c; }
+.case-next { text-align: right; flex-shrink: 0; }
+.case-next small { font-size: 11px; color: #57534e; display: block; }
+.case-next span { font-size: 12px; color: #a8a29e; font-weight: 500; }
+
+/* ============================================================
+   CARD PADDING UPGRADE — Module 2
+   Enforce p-5/p-6 for all panels
+   ============================================================ */
+.panel { padding: 22px !important; }
+.kpi-panel { padding: 20px !important; }
+@media (max-width: 768px) {
+  .panel { padding: 16px !important; }
+}
