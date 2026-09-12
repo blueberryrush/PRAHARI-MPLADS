@@ -1,14 +1,16 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Bell, Search, Globe2, X, ArrowRight, CheckCheck } from 'lucide-react';
+import { Bell, Search, Globe2, X, ArrowRight, CheckCheck, Sun, Moon } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { alerts, projects, agencies } from '../data/mockData';
 import SpeakerButton from './SpeakerButton';
 
 export default function Header({ title }) {
   const { lang, switchLanguage, t } = useLanguage();
   const { user } = useAuth();
+  const { theme, toggleTheme, isDark } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -185,6 +187,20 @@ export default function Header({ title }) {
             हिं
           </button>
         </div>
+
+        {/* Global Theme Toggle Button */}
+        <button
+          type="button"
+          className="theme-toggle-btn icon-button"
+          onClick={toggleTheme}
+          aria-label={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+          title={isDark ? (lang === 'hi' ? 'लाइट मोड चालू करें' : 'Switch to Light Mode') : (lang === 'hi' ? 'डार्क मोड चालू करें' : 'Switch to Dark Mode')}
+          style={{
+            color: isDark ? '#fbbf24' : '#d97706',
+          }}
+        >
+          {isDark ? <Sun size={17} /> : <Moon size={17} />}
+        </button>
 
         {/* Dynamic & Clickable Notification Bell */}
         <div className="notification-wrap">

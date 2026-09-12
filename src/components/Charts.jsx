@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Chart, registerables } from 'chart.js';
+import { useTheme } from '../contexts/ThemeContext';
 Chart.register(...registerables);
 
 const chartColors = {
@@ -137,39 +138,99 @@ export function DoughnutChart({ labels, data, title, colors }) {
 }
 
 export function RadarChart({ labels, datasets, title }) {
+  const { isDark } = useTheme();
+
+  const defaultStyles = [
+    {
+      borderColor: '#059669', // Forest Green
+      backgroundColor: 'rgba(5, 150, 105, 0.2)',
+      pointBackgroundColor: '#059669',
+      pointBorderColor: isDark ? '#1c1917' : '#ffffff',
+    },
+    {
+      borderColor: '#C85A32', // Terracotta
+      backgroundColor: 'rgba(200, 90, 50, 0.2)',
+      pointBackgroundColor: '#C85A32',
+      pointBorderColor: isDark ? '#1c1917' : '#ffffff',
+    },
+  ];
+
+  const gridColor = isDark ? '#44403c' : '#e7e5e4';
+  const labelColor = isDark ? '#a8a29e' : '#57534E';
+
   const canvasRef = useChart({
     type: 'radar',
     data: {
       labels,
-      datasets: datasets.map((ds, i) => ({
-        ...ds,
-        borderColor: ds.borderColor || chartColors.palette[i],
-        backgroundColor: (ds.borderColor || chartColors.palette[i]) + '20',
-        borderWidth: 2,
-        pointBackgroundColor: ds.borderColor || chartColors.palette[i],
-        pointBorderColor: '#fff',
-        pointBorderWidth: 2,
-      })),
+      datasets: datasets.map((ds, i) => {
+        const style = defaultStyles[i % defaultStyles.length];
+        return {
+          ...ds,
+          borderColor: ds.borderColor || style.borderColor,
+          backgroundColor: ds.backgroundColor || style.backgroundColor,
+          borderWidth: 2,
+          pointBackgroundColor: ds.pointBackgroundColor || style.pointBackgroundColor,
+          pointBorderColor: ds.pointBorderColor || style.pointBorderColor,
+          pointBorderWidth: 2,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+        };
+      }),
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      plugins: defaultOptions.plugins,
+      plugins: {
+        legend: {
+          labels: {
+            font: { family: 'Inter', size: 12, weight: '600' },
+            padding: 16,
+            usePointStyle: true,
+            pointStyleWidth: 10,
+            color: labelColor,
+          },
+        },
+        tooltip: {
+          backgroundColor: isDark ? '#1c1917' : '#ffffff',
+          titleColor: isDark ? '#f5f5f4' : '#1c1917',
+          bodyColor: isDark ? '#d6d3d1' : '#44403c',
+          borderColor: isDark ? '#44403c' : '#e7e5e4',
+          borderWidth: 1,
+          padding: 12,
+          cornerRadius: 8,
+          titleFont: { family: 'Outfit', size: 13, weight: '700' },
+          bodyFont: { family: 'Inter', size: 12 },
+          displayColors: true,
+        },
+      },
       scales: {
         r: {
           beginAtZero: true,
           max: 100,
-          grid: { color: 'rgba(0,0,0,0.04)' },
+          grid: { color: gridColor },
+          angleLines: { color: gridColor },
           ticks: { display: false },
-          pointLabels: { font: { family: 'Inter', size: 11 }, color: '#636E82' },
+          pointLabels: {
+            font: { family: 'Inter', size: 11, weight: '600' },
+            color: labelColor,
+          },
         },
       },
     },
   });
+
   return (
-    <div className="chart-card">
-      {title && <div className="chart-header"><h3 className="chart-title">{title}</h3></div>}
-      <div className="chart-canvas"><canvas ref={canvasRef}></canvas></div>
+    <div className={`p-6 rounded-xl border ${isDark ? 'border-stone-800 bg-stone-900/90' : 'bg-white border-stone-200 shadow-sm'}`}>
+      {title && (
+        <div className="chart-header mb-4">
+          <h3 className={`chart-title text-sm font-bold ${isDark ? 'text-stone-200' : 'text-stone-800'}`}>
+            {title}
+          </h3>
+        </div>
+      )}
+      <div className="chart-canvas" style={{ height: 320 }}>
+        <canvas ref={canvasRef}></canvas>
+      </div>
     </div>
   );
 }

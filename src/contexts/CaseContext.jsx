@@ -17,7 +17,12 @@ export const LIFECYCLE_STAGES = [
 
 // ─── Storage helpers ──────────────────────────────────────────────────────────
 function loadCases() {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch { return {}; }
+  try {
+    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+    return stored && typeof stored === 'object' && !Array.isArray(stored) ? stored : {};
+  } catch {
+    return {};
+  }
 }
 function saveCases(cases) {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(cases)); } catch {}
@@ -141,7 +146,7 @@ export function CaseProvider({ children }) {
 
   // ── Get or initialise a case ──────────────────────────────────────────────
   const getCase = useCallback((id) => {
-    return cases[id] || buildInitialCase(id);
+    return cases?.[id] || buildInitialCase(id);
   }, [cases]);
 
   // ── Advance lifecycle status ──────────────────────────────────────────────
@@ -423,7 +428,7 @@ export function CaseProvider({ children }) {
 
   // ── Submit citizen complaint ──────────────────────────────────────────────
   const addComplaint = useCallback((payload) => {
-    const tokenId = `GRV-${payload.stateCode || 'IN'}-${payload.districtCode || 'VAR'}-2026-${String(Math.floor(1000 + Math.random() * 9000))}`;
+    const tokenId = payload.customToken || `#CIT-${payload.districtCode || 'VNS'}-${String(Math.floor(1000 + Math.random() * 9000))}`;
     const complaint = {
       ...payload,
       tokenId,

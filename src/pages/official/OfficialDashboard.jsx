@@ -20,7 +20,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { calculateRiskScore } from '../../data/aiEngine';
 import { useLanguage } from '../../contexts/LanguageContext';
 import SpeakerButton from '../../components/SpeakerButton';
-import SpatialCommandView from '../../components/SpatialCommandView';
+import CivicMap from '../../components/map/CivicMap';
 
 const riskLabel = (s, t) =>
   s >= 70 ? t('risk_high_priority') : s >= 50 ? t('risk_requires_verification') : t('risk_stable');
@@ -700,10 +700,12 @@ export default function OfficialDashboard() {
               {lang === 'hi' ? 'वाराणसी जिला · 5 प्रशासनिक ब्लॉक' : 'Varanasi District · 5 Administrative Blocks'}
             </span>
           </div>
-          <SpatialCommandView
+          <CivicMap
             projects={scored}
             focusedId={focusedId}
             onPinClick={(id) => setFocusedId(id)}
+            height={440}
+            showFilters={true}
           />
         </section>
 

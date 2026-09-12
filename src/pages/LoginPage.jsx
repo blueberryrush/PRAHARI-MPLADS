@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, ArrowRight, Building2, Eye, EyeOff, Globe2, MapPin, ShieldCheck, UserRound } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Building2, Eye, EyeOff, Globe2, MapPin, SearchCheck, ShieldCheck, UserRound } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import SpeakerButton from '../components/SpeakerButton';

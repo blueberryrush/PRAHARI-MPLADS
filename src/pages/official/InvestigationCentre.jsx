@@ -167,35 +167,6 @@ export default function InvestigationCentre() {
 
   const investigatorRole = getRoleLabel ? getRoleLabel(user?.role || 'district_authority') : (user?.role || 'Investigator');
 
-  // Early return if no projects available at all
-  if (!p || !p.id) {
-    return (
-      <div className="page-content investigation-page">
-        <div className="workspace-head">
-          <div>
-            <div className="eyebrow">{safeT('inv_workspace_eyebrow', 'INVESTIGATION DOSSIER')}</div>
-            <h2>{safeT('inv_title', 'Investigation Centre')}</h2>
-            <p>{safeT('inv_subtitle', 'Review flagged anomalies and verify project integrity')}</p>
-          </div>
-        </div>
-        <div className="panel" style={{ padding: 32, textAlign: 'center' }}>
-          <AlertTriangle size={28} style={{ marginBottom: 12, opacity: 0.5 }} />
-          <h3>No Cases Available</h3>
-          <p style={{ opacity: 0.7 }}>No flagged projects found in your jurisdiction. Check back later or adjust your review filters.</p>
-        </div>
-      </div>
-    );
-  }
-
-  const handleSelectCase = (caseId) => {
-    setSelected(caseId);
-    resetCaseState();
-    const prefix = location.pathname.startsWith('/official/investigations')
-      ? '/official/investigations'
-      : '/official/investigation';
-    navigate(`${prefix}/${caseId}`);
-  };
-
   // Filter queue logic across 11 filters + search query
   const filteredQueue = useMemo(() => {
     return baseCases.filter((c) => {
@@ -240,6 +211,35 @@ export default function InvestigationCentre() {
       }
     });
   }, [baseCases, searchQuery, queueFilter, getCase]);
+
+  // Early return if no projects available at all
+  if (!p || !p.id) {
+    return (
+      <div className="page-content investigation-page">
+        <div className="workspace-head">
+          <div>
+            <div className="eyebrow">{safeT('inv_workspace_eyebrow', 'INVESTIGATION DOSSIER')}</div>
+            <h2>{safeT('inv_title', 'Investigation Centre')}</h2>
+            <p>{safeT('inv_subtitle', 'Review flagged anomalies and verify project integrity')}</p>
+          </div>
+        </div>
+        <div className="panel" style={{ padding: 32, textAlign: 'center' }}>
+          <AlertTriangle size={28} style={{ marginBottom: 12, opacity: 0.5 }} />
+          <h3>No Cases Available</h3>
+          <p style={{ opacity: 0.7 }}>No flagged projects found in your jurisdiction. Check back later or adjust your review filters.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const handleSelectCase = (caseId) => {
+    setSelected(caseId);
+    resetCaseState();
+    const prefix = location.pathname.startsWith('/official/investigations')
+      ? '/official/investigations'
+      : '/official/investigation';
+    navigate(`${prefix}/${caseId}`);
+  };
 
   // Checklist for Step 3 in Field Verification
   const fieldChecklistItems = [

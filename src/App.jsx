@@ -9,6 +9,7 @@ import {
 import { LanguageProvider } from './contexts/LanguageContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { CaseProvider } from './contexts/CaseContext';
+import { ThemeProvider } from './contexts/ThemeContext';
 import { useLanguage } from './contexts/LanguageContext';
 
 import ProtectedRoute from './components/ProtectedRoute';
@@ -369,21 +370,15 @@ function AppLayout() {
 function App() {
   return (
     <BrowserRouter>
-
-      <CaseProvider>
-
-      <LanguageProvider>
-
-        <AuthProvider>
-
-          <AppLayout />
-
-        </AuthProvider>
-
-      </LanguageProvider>
-
-      </CaseProvider>
-
+      <ThemeProvider>
+        <CaseProvider>
+          <LanguageProvider>
+            <AuthProvider>
+              <AppLayout />
+            </AuthProvider>
+          </LanguageProvider>
+        </CaseProvider>
+      </ThemeProvider>
     </BrowserRouter>
   );
 }

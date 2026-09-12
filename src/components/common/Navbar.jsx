@@ -1,11 +1,14 @@
-﻿import React from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Sun, Moon } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useTheme } from '../../contexts/ThemeContext';
 import SpeakerButton from '../SpeakerButton';
 
 export default function Navbar({ onOpenAuth, showAuthAction = true }) {
   const navigate = useNavigate();
   const { lang, switchLanguage } = useLanguage();
+  const { theme, toggleTheme, isDark } = useTheme();
   const hi = lang === 'hi';
 
   return (
@@ -56,6 +59,29 @@ export default function Navbar({ onOpenAuth, showAuthAction = true }) {
             हिं
           </button>
         </div>
+
+        <button
+          type="button"
+          className="theme-toggle-btn"
+          onClick={toggleTheme}
+          aria-label={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+          title={isDark ? (hi ? 'लाइट मोड चालू करें' : 'Switch to Light Mode') : (hi ? 'डार्क मोड चालू करें' : 'Switch to Dark Mode')}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 34,
+            height: 34,
+            borderRadius: '8px',
+            border: '1px solid var(--border, #292524)',
+            background: 'var(--bg-card, #1c1917)',
+            color: isDark ? '#fbbf24' : '#d97706',
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
+          }}
+        >
+          {isDark ? <Sun size={15} /> : <Moon size={15} />}
+        </button>
 
         {showAuthAction && (
           <button
