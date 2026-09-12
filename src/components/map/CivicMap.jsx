@@ -195,10 +195,8 @@ export default function CivicMap({
           const posX = tx * 256 - (currentCenterX - halfW);
           const posY = ty * 256 - (currentCenterY - halfH);
 
-          // Tile URL: CartoDB Dark Matter for Dark mode, CartoDB Positron for Light mode
-          const tileUrl = isDark
-            ? `https://basemaps.cartocdn.com/rastertiles/dark_all/${zoom}/${wrappedX}/${ty}.png`
-            : `https://basemaps.cartocdn.com/rastertiles/light_all/${zoom}/${wrappedX}/${ty}.png`;
+          // Tile URL: 100% free OpenStreetMap zero-watermark tiles
+          const tileUrl = `https://tile.openstreetmap.org/${zoom}/${wrappedX}/${ty}.png`;
 
           tiles.push({
             key: `${zoom}-${wrappedX}-${ty}`,
@@ -270,7 +268,7 @@ export default function CivicMap({
               color: '#059669',
               fontWeight: 700,
             }}>
-              <ShieldCheck size={13} /> {useGoogleMaps ? 'Google Maps Hybrid' : 'CartoDB / OSM Real Tiles'}
+              <ShieldCheck size={13} /> {useGoogleMaps ? 'Google Maps Hybrid' : 'OpenStreetMap Real Tiles'}
             </span>
           </div>
         </div>
@@ -368,7 +366,9 @@ export default function CivicMap({
                 width: 256,
                 height: 256,
                 pointerEvents: 'none',
-                filter: isDark ? 'brightness(0.9) contrast(1.1)' : 'none',
+                filter: isDark
+                  ? 'invert(100%) hue-rotate(180deg) brightness(0.85) contrast(1.2)'
+                  : 'brightness(0.98) contrast(1.02)',
               }}
             />
           ))}

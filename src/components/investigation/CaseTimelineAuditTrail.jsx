@@ -43,7 +43,7 @@ export default function CaseTimelineAuditTrail({ caseData, project }) {
       title: 'Field Verification & Evidence Inspection',
       date: '2024-08-18',
       actor: 'Investigator Desk',
-      status: status === 'Field Verification Dispatched' || status === 'Under Review' || status === 'Resolved' ? 'completed' : 'active',
+      status: status === 'UNDER_FIELD_INVESTIGATION' || status === 'Field Verification Dispatched' || status === 'Under Review' || status === 'Resolved' ? 'completed' : 'active',
       detail: 'Physical coordinate drift measured. Measurement Book MB-42 audited.',
     },
     {

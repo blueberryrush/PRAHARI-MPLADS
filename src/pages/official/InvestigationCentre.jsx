@@ -196,7 +196,7 @@ export default function InvestigationCentre() {
         case 'awaiting':
           return (cData?.evidenceItems || []).length < 3 || cData?.status === 'Detected';
         case 'field':
-          return cData?.status === 'Field Verification Dispatched' || !!c?.isAnomaly;
+          return cData?.status === 'UNDER_FIELD_INVESTIGATION' || cData?.status === 'Field Verification Dispatched' || !!c?.isAnomaly;
         case 'overdue':
           return getDueDateStatus(cData?.assignment?.dueDate)?.cls === 'overdue';
         case 'assigned_me':
@@ -288,10 +288,10 @@ export default function InvestigationCentre() {
 
         <div className="queue-summary">
           <span>
-            {t('inv_open_count')} <b>12</b>
+            {t('inv_open_count')} <b>{baseCases.length || 12}</b>
           </span>
           <span>
-            {t('inv_field_count')} <b>6</b>
+            {t('inv_field_count')} <b>{baseCases.filter(c => { const s = getCase(c.id)?.status; return s === 'UNDER_FIELD_INVESTIGATION' || s === 'Field Verification Dispatched'; }).length || 6}</b>
           </span>
           <span>
             {t('inv_overdue_count')} <b>2</b>
@@ -441,7 +441,9 @@ export default function InvestigationCentre() {
                       </span>
                       <div className="card-top-info">
                         <b>{c.id}</b>
-                        <span className="card-status-badge">{cData.status}</span>
+                        <span className="card-status-badge">
+                          {cData.status === 'UNDER_FIELD_INVESTIGATION' ? 'Field Verification Dispatched' : cData.status}
+                        </span>
                       </div>
                     </div>
 

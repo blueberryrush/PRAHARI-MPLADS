@@ -1,4 +1,4 @@
-﻿import { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { agencies } from '../../data/mockData';
@@ -335,11 +335,13 @@ export default function AgencyRiskProfile() {
         </div>
 
         {/* Radar Comparison Card */}
-        <motion.div variants={fadeUp} className="panel" style={{ padding: 24 }}>
+        <motion.div variants={fadeUp} className="p-6 rounded-xl border border-stone-800 bg-stone-900/90 dark:bg-stone-900/90" style={{ marginBottom: 24 }}>
           <div className="panel-head" style={{ marginBottom: 16 }}>
             <div>
-              <span className="eyebrow">{hi ? 'तुलनात्मक प्रदर्शन' : 'CROSS-AGENCY COMPARATIVE ANALYSIS'}</span>
-              <h3>{t('agency_compare')}</h3>
+              <span className="eyebrow text-xs font-medium" style={{ color: '#059669' }}>
+                {hi ? 'तुलनात्मक प्रदर्शन' : 'CROSS-AGENCY COMPARATIVE ANALYSIS'}
+              </span>
+              <h3 className="text-sm font-bold text-stone-100">{t('agency_compare')}</h3>
             </div>
           </div>
           <RadarChart
@@ -347,12 +349,18 @@ export default function AgencyRiskProfile() {
             labels={[t('agency_on_time'), t('agency_within_budget'), t('agency_quality'), hi ? 'विश्वसनीयता' : 'Reliability', hi ? 'अनुपालन' : 'Compliance']}
             datasets={[
               { 
-                label: agencies[0]?.name?.substring(0, 20) || 'Agency A', 
-                data: [agencies[0]?.onTimeRate || 70, agencies[0]?.withinBudgetRate || 65, agencies[0]?.qualityScore || 70, 100 - (agencies[0]?.riskScore || 40), Math.max(0, 100 - (agencies[0]?.redFlags || 0) * 10)] 
+                label: `${agencies[0]?.name?.substring(0, 24) || 'Agency A'} (Benchmark)`, 
+                data: [agencies[0]?.onTimeRate || 70, agencies[0]?.withinBudgetRate || 65, agencies[0]?.qualityScore || 70, 100 - (agencies[0]?.riskScore || 40), Math.max(0, 100 - (agencies[0]?.redFlags || 0) * 10)],
+                borderColor: '#059669',
+                backgroundColor: 'rgba(5, 150, 105, 0.2)',
+                pointBackgroundColor: '#059669',
               },
               { 
-                label: agencies[11]?.name?.substring(0, 20) || 'Agency B', 
-                data: [agencies[11]?.onTimeRate || 40, agencies[11]?.withinBudgetRate || 35, agencies[11]?.qualityScore || 42, 100 - (agencies[11]?.riskScore || 85), Math.max(0, 100 - (agencies[11]?.redFlags || 0) * 10)] 
+                label: `${agencies[11]?.name?.substring(0, 24) || 'Agency B'} (Audited Outlier)`, 
+                data: [agencies[11]?.onTimeRate || 40, agencies[11]?.withinBudgetRate || 35, agencies[11]?.qualityScore || 42, 100 - (agencies[11]?.riskScore || 85), Math.max(0, 100 - (agencies[11]?.redFlags || 0) * 10)],
+                borderColor: '#C85A32',
+                backgroundColor: 'rgba(200, 90, 50, 0.2)',
+                pointBackgroundColor: '#C85A32',
               },
             ]}
           />

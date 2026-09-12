@@ -558,8 +558,8 @@ export default function CitizenDashboard() {
                 <AlertTriangle size={18} style={{ color: '#ea580c', flexShrink: 0 }} />
                 <span>
                   {hi
-                    ? 'स्थान तक पहुँच अनुपलब्ध है। डेमो मोड (गाजियाबाद, उत्तर प्रदेश) पर स्विच किया गया।'
-                    : 'Location access unavailable. Switched to Demo Mode (Ghaziabad, Uttar Pradesh)'}
+                    ? 'स्थान तक पहुँच अनुपलब्ध है। डेमो स्थान प्रदर्शित किया जा रहा है: गाजियाबाद, उत्तर प्रदेश (उदाहरणात्मक डेटा)'
+                    : 'Location access unavailable. Displaying Demo Location: Ghaziabad, Uttar Pradesh (Illustrative Data)'}
                 </span>
               </div>
               <button
@@ -977,7 +977,7 @@ export default function CitizenDashboard() {
                 }}>
                   <AlertTriangle size={18} style={{ color: '#C85A32', flexShrink: 0, marginTop: 2 }} />
                   <div style={{ fontSize: 12, color: '#C85A32', lineHeight: 1.45 }}>
-                    <strong>⚠️ {discrepancy}-point discrepancy detected</strong> between official reporting ({reportedProgress}%) and satellite visual estimate ({visualEstimate}%). Ground verification by citizens is strongly advised.
+                    <strong>⚠️ {discrepancy}-point discrepancy detected between contractor claim and ground visual baseline.</strong> Official reported progress: {reportedProgress}% vs. AI satellite ground baseline: {visualEstimate}%. Independent ground verification by citizens is strongly advised.
                   </div>
                 </div>
               )}
@@ -1211,7 +1211,7 @@ export default function CitizenDashboard() {
                       style={{ fontSize: 11, height: 34, padding: '0 16px', background: '#059669', borderColor: '#059669' }}
                       onClick={handleEvidenceSubmit}
                     >
-                      Submit Ground Evidence
+                      Submit Citizen Observation
                     </button>
                   </div>
                 </div>

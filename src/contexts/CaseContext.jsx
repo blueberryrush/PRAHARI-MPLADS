@@ -9,6 +9,7 @@ export const LIFECYCLE_STAGES = [
   'Detected',
   'Triaged',
   'Assigned',
+  'UNDER_FIELD_INVESTIGATION',
   'Field Verification Dispatched',
   'Under Review',
   'Resolved',
@@ -39,15 +40,19 @@ function buildInitialCase(id) {
   const isPrj2 = id?.toUpperCase() === 'PRJ002';
   return {
     id,
-    status: isPrj2 ? 'Assigned' : 'Detected',
+    status: isPrj2 ? 'UNDER_FIELD_INVESTIGATION' : 'Detected',
     priority: isPrj2 ? 'high' : 'medium',
-    assignedOfficer: isPrj2 ? 'Rajesh Kumar (Field Officer)' : null,
+    assignedOfficer: isPrj2 ? 'Shri R.K. Verma - Sub-Divisional Magistrate (SDM), Sadar' : null,
     assignment: isPrj2 ? {
-      officer: 'Rajesh Kumar',
-      role: 'Field Officer',
-      department: 'District Engineering Vigilance Cell',
+      officer: 'Shri R.K. Verma - Sub-Divisional Magistrate (SDM), Sadar',
+      subordinateOfficer: 'Shri R.K. Verma',
+      role: 'Sub-Divisional Magistrate',
+      designation: 'Sub-Divisional Magistrate (SDM), Sadar',
+      department: 'Sub-Divisional Revenue & Vigilance Cell',
       priority: 'high',
       dueDate: '2026-09-18',
+      mandatedFocus: ['Physical Milestone Progress', 'Asset Existence & Geo-coordinates', 'Material Quality / Core Sampling'],
+      directives: 'Conduct on-site culvert and bitumen measurement. Reconcile with PRJ001 GIS boundary.',
       instructions: 'Conduct on-site culvert and bitumen measurement. Reconcile with PRJ001 GIS boundary.'
     } : null,
     checklist: {
@@ -174,23 +179,29 @@ export function CaseProvider({ children }) {
     });
   }, []);
 
-  // ── Assign Case ───────────────────────────────────────────────────────────
+  // ── Assign / Dispatch Field Verification Case ───────────────────────────
   const assignCase = useCallback((id, assignmentData, officerName = 'District Authority', role = 'district_authority') => {
     setCases(prev => {
       const existing = prev[id] || buildInitialCase(id);
+      const officerLabel = assignmentData.officer || assignmentData.subordinateOfficer || 'Field Officer';
       const updated = {
         ...existing,
-        status: 'Assigned',
-        assignedOfficer: `${assignmentData.officer} (${assignmentData.role || 'Investigator'})`,
-        assignment: { ...assignmentData },
+        status: 'UNDER_FIELD_INVESTIGATION',
+        assignedOfficer: officerLabel,
+        assignment: {
+          ...assignmentData,
+          assignedAt: new Date().toISOString(),
+          assignedBy: officerName,
+          status: 'UNDER_FIELD_INVESTIGATION',
+        },
         auditHistory: [
           ...existing.auditHistory,
           {
-            action: 'Case Assigned',
+            action: 'Field Directive Dispatched',
             timestamp: new Date().toISOString(),
             officerName,
             role,
-            note: `Assigned to ${assignmentData.officer} (${assignmentData.department}). Priority: ${assignmentData.priority}. Due: ${assignmentData.dueDate}.`,
+            note: `Field inspection delegated to ${officerLabel} (${assignmentData.department || 'Inspection Wing'}). Mandated Focus: ${(assignmentData.mandatedFocus || []).join('; ') || 'Comprehensive Verification'}. Directives: ${assignmentData.directives || assignmentData.instructions || 'Conduct ground inspection'}. Statutory Deadline: ${assignmentData.dueDate}.`,
             hash: Math.random().toString(36).slice(2, 10).toUpperCase(),
           },
         ],
@@ -199,7 +210,7 @@ export function CaseProvider({ children }) {
       saveCases(next);
       return next;
     });
-    showToast(`Case ${id} successfully assigned to ${assignmentData.officer}.`);
+    showToast(`Field verification directive dispatched to ${assignmentData.officer || 'Subordinate Officer'} for ${id}. Statutory deadline: ${assignmentData.dueDate}.`);
   }, [showToast]);
 
   // ── Update Checklist Item ─────────────────────────────────────────────────

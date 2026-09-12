@@ -3,17 +3,20 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ArrowRight, Building2, SearchCheck, UserRound, ShieldCheck, 
   Network, Sparkles, MapPin, Eye, Filter, CheckCircle2, 
-  AlertTriangle, DollarSign, Layers, ExternalLink 
+  AlertTriangle, DollarSign, Layers, ExternalLink, Sun, Moon 
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useTheme } from '../contexts/ThemeContext';
 import SpeakerButton from '../components/SpeakerButton';
 import AuthModal from '../components/auth/AuthModal';
 import CivicMap from '../components/map/CivicMap';
+import GeographicExplorer from '../components/map/GeographicExplorer';
 
 export default function LandingPage() {
   const navigate = useNavigate();
   const { lang, switchLanguage } = useLanguage();
+  const { theme, toggleTheme, isDark } = useTheme();
   const hi = lang === 'hi';
 
   const [authModalOpen, setAuthModalOpen] = useState(false);
@@ -75,6 +78,29 @@ export default function LandingPage() {
           </div>
           <button
             type="button"
+            className="theme-toggle-btn"
+            onClick={toggleTheme}
+            aria-label={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            title={isDark ? (hi ? 'लाइट मोड चालू करें' : 'Switch to Light Mode') : (hi ? 'डार्क मोड चालू करें' : 'Switch to Dark Mode')}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 34,
+              height: 34,
+              borderRadius: '8px',
+              border: '1px solid var(--border, #292524)',
+              background: 'var(--bg-card, #1c1917)',
+              color: isDark ? '#fbbf24' : '#d97706',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+              marginLeft: 4,
+            }}
+          >
+            {isDark ? <Sun size={15} /> : <Moon size={15} />}
+          </button>
+          <button
+            type="button"
             className="primary-action"
             onClick={() => setAuthModalOpen(true)}
             style={{ height: 34, padding: '0 14px', fontSize: 11, marginLeft: 6 }}
@@ -116,16 +142,14 @@ export default function LandingPage() {
         </section>
 
         {/* =============================================================
-            LIVE DISTRICT SURVEILLANCE INTERACTIVE MAP (CIVICMAP)
+            LIVE DISTRICT SURVEILLANCE INTERACTIVE GEOGRAPHIC EXPLORER
         ============================================================= */}
         <section className="my-12 px-6 max-w-7xl mx-auto" style={{ width: '100%', boxSizing: 'border-box' }}>
-          <CivicMap
-            title={hi ? 'वाराणसी ब्लॉक स्तर निगरानी मानचित्र' : 'Varanasi District Public Monitoring Map'}
+          <GeographicExplorer
+            title={hi ? 'लाइव जिला निगरानी | Live District Surveillance' : 'Live District Surveillance | पारदर्शी सार्वजनिक निगरानी'}
             subtitle={hi 
-              ? 'पिंडरा, शिवपुर, काशी और रोहनिया ब्लॉकों में जारी विकास कार्यों की स्थिति देखें' 
-              : 'Explore public projects across Kashi, Pindra, Shivpur and Rohaniya blocks in real time'}
-            height={480}
-            showFilters={true}
+              ? 'वास्तविक समय जोखिम वर्गीकरण एवं नागरिक ग्राउंड सत्यापन के साथ राष्ट्रीय एमपीलैड्स निगरानी ग्रिड' 
+              : 'National surveillance grid tracking MPLADS works with real-time risk classification and ground verification'}
           />
         </section>
 

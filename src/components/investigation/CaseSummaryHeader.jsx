@@ -38,7 +38,7 @@ export default function CaseSummaryHeader({
               {t('inv_case')} {p.id}
             </span>
             <span className={`case-status-badge status-${status.toLowerCase().replace(/\s+/g, '-')}`}>
-              {status}
+              {status === 'UNDER_FIELD_INVESTIGATION' ? 'Field Verification Dispatched' : status}
             </span>
             <span className={`case-priority-badge priority-${risk.level}`}>
               {risk.level === 'critical' || risk.level === 'high'
@@ -133,7 +133,7 @@ export default function CaseSummaryHeader({
 
         <div className="metric-cell">
           <span className="metric-label">{t('inv_case_status')}</span>
-          <b className="metric-val status-text">{status}</b>
+          <b className="metric-val status-text">{status === 'UNDER_FIELD_INVESTIGATION' ? 'Field Verification Dispatched' : status}</b>
           <small className="metric-hint">Workflow State</small>
         </div>
       </div>

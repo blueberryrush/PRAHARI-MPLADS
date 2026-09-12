@@ -1,10 +1,11 @@
-﻿import { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { projects, benchmarks } from '../../data/mockData';
 import { findRedFlagScenarios, compareProjects } from '../../data/aiEngine';
 import AnimatedCounter from '../../components/AnimatedCounter';
 import { GitCompare, AlertTriangle, CheckCircle2, Flag, TrendingUp, ArrowRight, ShieldCheck, DollarSign, Clock } from 'lucide-react';
+import { RadarChart } from '../../components/Charts';
 
 const fadeUp = { hidden: { opacity: 0, y: 15 }, visible: { opacity: 1, y: 0, transition: { duration: 0.4 } } };
 const stagger = { visible: { transition: { staggerChildren: 0.08 } } };
@@ -148,12 +149,7 @@ export default function ComparisonRiskAnalysis() {
               border: '1px solid var(--line)'
             }}>
               {/* Project A Box */}
-              <div style={{
-                background: '#fff',
-                borderRadius: 12,
-                padding: 18,
-                border: '1px solid var(--line)'
-              }}>
+              <div className="p-4 rounded-xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900/90">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                   <code style={{ fontSize: 11, color: '#059669', fontWeight: 700 }}>{manualComparison.projectA.id}</code>
                   <span style={{ fontSize: 10, background: 'rgba(5, 150, 105, 0.1)', color: '#059669', padding: '3px 8px', borderRadius: 6, fontWeight: 700 }}>
@@ -170,12 +166,12 @@ export default function ComparisonRiskAnalysis() {
               </div>
 
               {/* Project B Box */}
-              <div style={{
-                background: '#fff',
-                borderRadius: 12,
-                padding: 18,
-                border: `1px solid ${manualComparison.isRedFlag ? '#C85A32' : '#059669'}`
-              }}>
+              <div
+                className="p-4 rounded-xl bg-white dark:bg-stone-900/90"
+                style={{
+                  border: `1px solid ${manualComparison.isRedFlag ? '#C85A32' : '#059669'}`
+                }}
+              >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                   <code style={{ fontSize: 11, color: manualComparison.isRedFlag ? '#C85A32' : '#059669', fontWeight: 700 }}>
                     {manualComparison.projectB.id}
@@ -233,6 +229,46 @@ export default function ComparisonRiskAnalysis() {
                   </span>
                 </div>
               </div>
+
+              {/* Radar Comparison Chart for Selected Projects */}
+              <div
+                className="p-6 rounded-xl border border-stone-800 bg-stone-900/90 dark:bg-stone-900/90"
+                style={{ gridColumn: '1 / -1', marginTop: 14 }}
+              >
+                <div style={{ marginBottom: 14 }}>
+                  <span className="eyebrow text-xs font-medium" style={{ color: '#059669' }}>
+                    {hi ? 'बहु-आयामी जोखिम विश्लेषण' : 'MULTI-DIMENSIONAL RISK ARBITRATION'}
+                  </span>
+                  <h4 className="text-sm font-bold text-stone-100" style={{ margin: '4px 0 0' }}>
+                    {manualComparison.projectA.id} (Baseline) vs {manualComparison.projectB.id} (Audited)
+                  </h4>
+                </div>
+                <RadarChart
+                  labels={[
+                    hi ? 'लागत दक्षता' : 'Cost Efficiency',
+                    hi ? 'समय पालन' : 'Schedule Pace',
+                    hi ? 'गुणवत्ता स्कोर' : 'Quality Score',
+                    hi ? 'अनुपालन स्तर' : 'Compliance Rate',
+                    hi ? 'सामग्री अखंडता' : 'Material Integrity',
+                  ]}
+                  datasets={[
+                    {
+                      label: `${manualComparison.projectA.id} (Baseline)`,
+                      data: [88, 85, 90, 92, 86],
+                    },
+                    {
+                      label: `${manualComparison.projectB.id} (Audited)`,
+                      data: [
+                        Math.max(25, 88 - (manualComparison.costDiff || 0)),
+                        Math.max(20, 85 - (manualComparison.timeDiff || 0)),
+                        manualComparison.isRedFlag ? 52 : 82,
+                        manualComparison.isRedFlag ? 48 : 88,
+                        manualComparison.isRedFlag ? 55 : 84,
+                      ],
+                    },
+                  ]}
+                />
+              </div>
             </div>
           )}
         </motion.div>
@@ -265,7 +301,7 @@ export default function ComparisonRiskAnalysis() {
                 }}
               >
                 {/* Peer A: Baseline Project */}
-                <div style={{ background: '#fff', borderRadius: 8, padding: 12, border: '1px solid var(--line)' }}>
+                <div className="p-3 rounded-xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900/90">
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 4 }}>
                     <code style={{ color: '#059669', fontWeight: 700 }}>✓ {scenario.projectA.id}</code>
                     <span style={{ color: 'var(--muted)' }}>{scenario.projectA.sector}</span>
@@ -298,7 +334,10 @@ export default function ComparisonRiskAnalysis() {
                 </div>
 
                 {/* Peer B: Outlier Project */}
-                <div style={{ background: '#fff', borderRadius: 8, padding: 12, border: '1px solid rgba(200, 90, 50, 0.35)' }}>
+                <div
+                  className="p-3 rounded-xl bg-white dark:bg-stone-900/90"
+                  style={{ border: '1px solid rgba(200, 90, 50, 0.35)' }}
+                >
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 4 }}>
                     <code style={{ color: '#C85A32', fontWeight: 700 }}>⚠ {scenario.projectB.id}</code>
                     <span style={{ color: '#C85A32', fontWeight: 700 }}>Overrun Alert</span>

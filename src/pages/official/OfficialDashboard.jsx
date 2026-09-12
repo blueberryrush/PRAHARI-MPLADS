@@ -1,11 +1,9 @@
 import { useMemo, useState } from 'react';
-import { motion } from 'framer-motion';
 import {
   ArrowRight,
   ArrowUpDown,
   Clock3,
   Eye,
-  Filter,
   MapPin,
   SearchCheck,
   ShieldAlert,
@@ -13,14 +11,18 @@ import {
   TrendingUp,
   UsersRound,
   X,
+  CheckCircle2,
+  FileText,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { projects, agencies } from '../../data/mockData';
 import { useAuth } from '../../contexts/AuthContext';
 import { calculateRiskScore } from '../../data/aiEngine';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useCaseContext } from '../../contexts/CaseContext';
 import SpeakerButton from '../../components/SpeakerButton';
 import CivicMap from '../../components/map/CivicMap';
+import InvestigationAssignmentModal from '../../components/investigation/InvestigationAssignmentModal';
 
 const riskLabel = (s, t) =>
   s >= 70 ? t('risk_high_priority') : s >= 50 ? t('risk_requires_verification') : t('risk_stable');
@@ -65,12 +67,14 @@ export default function OfficialDashboard() {
   const navigate = useNavigate();
   const { user, getRoleLabel } = useAuth();
   const { t, lang } = useLanguage();
+  const { getCase, assignCase } = useCaseContext();
   const [filter, setFilter] = useState('all');
   const [activeTileFilter, setActiveTileFilter] = useState(null); // 'works' | 'priority' | 'verification' | 'resolved' | 'exposure'
   const [activeActionFilter, setActiveActionFilter] = useState(null); // 'high_reviews' | 'field_verif' | 'awaiting_evidence'
   const [sortBy, setSortBy] = useState('score'); // 'score' | 'recent'
   const [query, setQuery] = useState('');
   const [focusedId, setFocusedId] = useState(null);
+  const [dispatchModalProject, setDispatchModalProject] = useState(null);
 
   const scope =
     user?.role === 'ministry' ? 'India' :
@@ -117,7 +121,11 @@ export default function OfficialDashboard() {
 
       // 2. Action queue filter
       if (activeActionFilter === 'high_reviews' && p.risk.score < 70) return false;
-      if (activeActionFilter === 'field_verif' && !(p.risk.score >= 70 || p.status === 'delayed')) return false;
+      if (activeActionFilter === 'field_verif') {
+        const caseState = getCase(p.id);
+        const isFieldDispatched = caseState?.status === 'UNDER_FIELD_INVESTIGATION' || caseState?.status === 'Field Verification Dispatched';
+        if (!(p.risk.score >= 70 || p.status === 'delayed' || isFieldDispatched)) return false;
+      }
       if (activeActionFilter === 'awaiting_evidence' && !(p.physicalProgress < 50 || p.isAnomaly || p.status === 'delayed')) return false;
 
       // 3. Category pill filter
@@ -140,7 +148,7 @@ export default function OfficialDashboard() {
       const searchable = `${p.id} ${p.name} ${p.district} ${p.constituency} ${contractorName} ${p.description || ''} ${signalTags}`.toLowerCase();
       return searchable.includes(q);
     });
-  }, [scored, activeTileFilter, activeActionFilter, filter, query, agencyMap]);
+  }, [scored, activeTileFilter, activeActionFilter, filter, query, agencyMap, getCase]);
 
   const priority = scored.filter(p => p.risk.score >= 50).length;
   const exposure = scored.filter(p => p.risk.score >= 50).reduce((s, p) => s + p.sanctionedAmount, 0);
@@ -447,43 +455,139 @@ export default function OfficialDashboard() {
                 </button>
               </div>
             ) : (
-              visible.map((p, i) => (
-                <button
-                  className="case-row"
-                  key={p.id}
-                  onClick={() => navigate(`/official/risk/${p.id}`)}
-                >
-                  <div className="case-index">{String(i + 1).padStart(2, '0')}</div>
-                  <div className="case-main">
-                    <div className="case-id">{p.id} · {p.district}</div>
-                    <strong>{p.name}</strong>
-                    <div className="signal-tags">
-                      {p.spentAmount > p.sanctionedAmount * 1.1 && (
-                        <span className="tag red">{t('signal_financial_name')}</span>
-                      )}
-                      {p.status === 'delayed' && (
-                        <span className="tag amber">{t('signal_delay_name')}</span>
-                      )}
-                      {p.id === 'PRJ002' && (
-                        <span className="tag teal">{t('signal_spatial_name')}</span>
+              visible.map((p, i) => {
+                const caseData = getCase(p.id);
+                const isDispatched = caseData?.status === 'UNDER_FIELD_INVESTIGATION' || caseData?.status === 'Field Verification Dispatched';
+                const officerName = caseData?.assignment?.officer || caseData?.assignedOfficer;
+
+                return (
+                  <div
+                    className="case-row"
+                    key={p.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => navigate(`/official/risk/${p.id}`)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        navigate(`/official/risk/${p.id}`);
+                      }
+                    }}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <div className="case-index">{String(i + 1).padStart(2, '0')}</div>
+                    <div className="case-main">
+                      <div className="case-id">{p.id} · {p.district}</div>
+                      <strong>{p.name}</strong>
+                      <div className="signal-tags">
+                        {p.spentAmount > p.sanctionedAmount * 1.1 && (
+                          <span className="tag red">{t('signal_financial_name')}</span>
+                        )}
+                        {p.status === 'delayed' && (
+                          <span className="tag amber">{t('signal_delay_name')}</span>
+                        )}
+                        {p.id === 'PRJ002' && (
+                          <span className="tag teal">{t('signal_spatial_name')}</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="case-score">
+                      <b>{p.risk.score}</b>
+                      <span>{riskLabel(p.risk.score, t)}</span>
+                    </div>
+                    <div className="case-next">
+                      <small>{t('dash_next_action')}</small>
+                      {isDispatched ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
+                          <span
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              color: 'var(--brand, #059669)',
+                              background: 'rgba(5, 150, 105, 0.1)',
+                              padding: '2px 8px',
+                              borderRadius: '5px',
+                              border: '1px solid rgba(5, 150, 105, 0.25)',
+                            }}
+                          >
+                            <CheckCircle2 size={12} />
+                            {lang === 'hi' ? 'स्थलीय जांच जारी' : 'Field Directive Dispatched'}
+                          </span>
+                          <button
+                            type="button"
+                            className="directive-reassign-link"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDispatchModalProject(p);
+                            }}
+                            style={{
+                              background: 'transparent',
+                              border: 'none',
+                              color: 'var(--brand, #059669)',
+                              fontSize: '10px',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              padding: '2px 0',
+                              textDecoration: 'underline',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '3px',
+                            }}
+                          >
+                            <FileText size={10} />
+                            <span>
+                              {officerName
+                                ? `${officerName.split('-')[0].trim()} · ${t('dash_view_directive') || 'View Directive'}`
+                                : (t('dash_view_directive') || 'View Directive')}
+                            </span>
+                          </button>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', alignItems: 'flex-start' }}>
+                          <button
+                            type="button"
+                            className="assign-verify-btn"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDispatchModalProject(p);
+                            }}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '5px',
+                              padding: '5px 10px',
+                              borderRadius: '6px',
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              background: p.risk.score >= 70 ? 'var(--danger, #C85A32)' : 'var(--brand, #059669)',
+                              color: '#fff',
+                              border: 'none',
+                              cursor: 'pointer',
+                              boxShadow: '0 2px 5px rgba(0,0,0,0.12)',
+                              transition: 'all 0.15s ease',
+                            }}
+                            title={lang === 'hi' ? 'अधीनस्थ अधिकारी को स्थलीय जांच सौंपें' : 'Delegate field verification to subordinate officer'}
+                          >
+                            <ShieldAlert size={12} />
+                            <span>
+                              {p.risk.score >= 70
+                                ? (lang === 'hi' ? 'सत्यापन सौंपें (Assign)' : 'Assign Verification')
+                                : (lang === 'hi' ? 'जांच आदेश दें' : 'Dispatch Directive')}
+                            </span>
+                          </button>
+                          <span style={{ fontSize: '10px', color: 'var(--muted, #78716c)' }}>
+                            {p.risk.score >= 70 ? t('dash_field_verify_action') : t('dash_review_evidence_action')}
+                          </span>
+                        </div>
                       )}
                     </div>
+                    <ArrowRight size={16} className="row-arrow" />
                   </div>
-                  <div className="case-score">
-                    <b>{p.risk.score}</b>
-                    <span>{riskLabel(p.risk.score, t)}</span>
-                  </div>
-                  <div className="case-next">
-                    <small>{t('dash_next_action')}</small>
-                    <span>
-                      {p.risk.score >= 70
-                        ? t('dash_field_verify_action')
-                        : t('dash_review_evidence_action')}
-                    </span>
-                  </div>
-                  <ArrowRight size={16} className="row-arrow" />
-                </button>
-              ))
+                );
+              })
             )}
           </div>
         </section>
@@ -711,6 +815,24 @@ export default function OfficialDashboard() {
 
         <SignalMixCard signals={signals} t={t} />
       </div>
+
+      {/* Administrative Field Directive Dispatch Modal */}
+      {dispatchModalProject && (
+        <InvestigationAssignmentModal
+          project={dispatchModalProject}
+          existingAssignment={getCase(dispatchModalProject.id)?.assignment}
+          onClose={() => setDispatchModalProject(null)}
+          onSaveAssignment={(assignmentData) => {
+            assignCase(
+              dispatchModalProject.id,
+              assignmentData,
+              user?.name || authorityLabel,
+              user?.role || 'district_authority'
+            );
+            setDispatchModalProject(null);
+          }}
+        />
+      )}
     </div>
   );
 }
