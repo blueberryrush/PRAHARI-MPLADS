@@ -15,9 +15,9 @@ export default function FinancialVerificationPanel({ project }) {
   const [showModal, setShowModal] = useState(false);
   const p = project;
 
-  const sanctioned = p.sanctionedAmount;
-  const released = p.spentAmount; // released to agency
-  const utilized = p.spentAmount;
+  const sanctioned = p?.sanctionedAmount || 0;
+  const released = p?.spentAmount || 0; // released to agency
+  const utilized = p?.spentAmount || 0;
   const balance = sanctioned - utilized;
   const isOverrun = balance < 0;
 
@@ -92,7 +92,7 @@ export default function FinancialVerificationPanel({ project }) {
         <div className="fin-card">
           <span className="fin-label">{t('inv_fin_utilized')}</span>
           <b className="fin-amount text-danger">₹{(utilized / 100000).toFixed(2)} Lakh</b>
-          <small className="fin-sub">Billed by Agency {p.agency}</small>
+          <small className="fin-sub">Billed by Agency {p?.agency || 'N/A'}</small>
         </div>
 
         <div className="fin-card">
@@ -108,10 +108,10 @@ export default function FinancialVerificationPanel({ project }) {
       <div className="progress-mismatch-box">
         <div className="mismatch-header">
           <b>{t('inv_fin_comparison_title')}</b>
-          {p.financialProgress > p.physicalProgress && (
+          {(p?.financialProgress || 0) > (p?.physicalProgress || 0) && (
             <span className="mismatch-alert-chip">
               <AlertTriangle size={13} />
-              +{p.financialProgress - p.physicalProgress}% Discrepancy
+              +{(p?.financialProgress || 0) - (p?.physicalProgress || 0)}% Discrepancy
             </span>
           )}
         </div>
@@ -119,12 +119,12 @@ export default function FinancialVerificationPanel({ project }) {
         <div className="bar-comparison-row">
           <div className="bar-label-group">
             <span>{t('inv_physical_prog')}</span>
-            <b>{p.physicalProgress}%</b>
+            <b>{p?.physicalProgress || 0}%</b>
           </div>
           <div className="track-bar">
             <div
               className="fill-bar physical-fill"
-              style={{ width: `${Math.min(p.physicalProgress, 100)}%` }}
+              style={{ width: `${Math.min(p?.physicalProgress || 0, 100)}%` }}
             />
           </div>
         </div>
@@ -132,21 +132,21 @@ export default function FinancialVerificationPanel({ project }) {
         <div className="bar-comparison-row">
           <div className="bar-label-group">
             <span>{t('inv_financial_prog')}</span>
-            <b className={p.financialProgress > 100 ? 'text-danger' : ''}>
-              {p.financialProgress}%
+            <b className={(p?.financialProgress || 0) > 100 ? 'text-danger' : ''}>
+              {p?.financialProgress || 0}%
             </b>
           </div>
           <div className="track-bar">
             <div
-              className={`fill-bar financial-fill ${p.financialProgress > 100 ? 'danger-fill' : ''}`}
-              style={{ width: `${Math.min(p.financialProgress, 100)}%` }}
+              className={`fill-bar financial-fill ${(p?.financialProgress || 0) > 100 ? 'danger-fill' : ''}`}
+              style={{ width: `${Math.min(p?.financialProgress || 0, 100)}%` }}
             />
           </div>
         </div>
 
         <p className="mismatch-explanation">
-          {p.financialProgress > p.physicalProgress
-            ? `Disbursement of funds (183%) significantly leads physical progress (55%). Official guidelines require physical measurement certification before release of tranches exceeding 100%.`
+          {(p?.financialProgress || 0) > (p?.physicalProgress || 0)
+            ? `Disbursement of funds (${p?.financialProgress || 0}%) significantly leads physical progress (${p?.physicalProgress || 0}%). Official guidelines require physical measurement certification before release of tranches exceeding 100%.`
             : `Financial disbursement is aligned with reported physical milestones.`}
         </p>
       </div>
@@ -159,7 +159,7 @@ export default function FinancialVerificationPanel({ project }) {
               <div>
                 <span className="eyebrow">PFMS FINANCIAL LEDGER</span>
                 <h3>{t('inv_pfms_schedule_title')}</h3>
-                <p className="sub-text">Case {p.id} · {p.name}</p>
+                <p className="sub-text">Case {p?.id} · {p?.name}</p>
               </div>
               <button
                 type="button"

@@ -25,12 +25,12 @@ export default function DuplicateComparisonModal({
   const [decisionNotes, setDecisionNotes] = useState('');
   const [selectedDecision, setSelectedDecision] = useState(existingDecision || null);
 
-  const pA = currentProject;
-  const pB = candidateProject || projects.find((p) => p.id === 'PRJ001') || projects[0];
+  const pA = currentProject || {};
+  const pB = candidateProject || projects.find((p) => p.id === 'PRJ001') || projects[0] || {};
 
   const handleAction = (decisionKey) => {
     setSelectedDecision(decisionKey);
-    if (onRecordDecision) {
+    if (onRecordDecision && pA.id && pB.id) {
       onRecordDecision(pA.id, pB.id, decisionKey, decisionNotes);
     }
   };
@@ -91,41 +91,41 @@ export default function DuplicateComparisonModal({
               <div className="attr-list">
                 <div className="attr-row">
                   <span className="attr-name">Sector</span>
-                  <span className="attr-value">{pA.sector}</span>
+                  <span className="attr-value">{pA?.sector || 'Infrastructure'}</span>
                 </div>
                 <div className="attr-row">
                   <span className="attr-name">Location</span>
-                  <span className="attr-value">{pA.district}, {pA.state}</span>
+                  <span className="attr-value">{pA?.district}, {pA?.state}</span>
                 </div>
                 <div className="attr-row">
                   <span className="attr-name">Coordinates</span>
                   <span className="attr-value">
-                    {pA.latitude || 25.3176}° N, {pA.longitude || 82.9739}° E
+                    {pA?.latitude || 25.3176}° N, {pA?.longitude || 82.9739}° E
                   </span>
                 </div>
                 <div className="attr-row">
                   <span className="attr-name">Sanction Amount</span>
-                  <span className="attr-value">₹{(pA.sanctionedAmount / 100000).toFixed(1)} Lakh</span>
+                  <span className="attr-value">₹{((pA?.sanctionedAmount || 0) / 100000).toFixed(1)} Lakh</span>
                 </div>
                 <div className="attr-row">
                   <span className="attr-name">Reported Spend</span>
-                  <span className="attr-value text-danger">₹{(pA.spentAmount / 100000).toFixed(1)} Lakh (183%)</span>
+                  <span className="attr-value text-danger">₹{((pA?.spentAmount || 0) / 100000).toFixed(1)} Lakh</span>
                 </div>
                 <div className="attr-row">
                   <span className="attr-name">Physical Progress</span>
-                  <span className="attr-value">{pA.physicalProgress}%</span>
+                  <span className="attr-value">{pA?.physicalProgress || 0}%</span>
                 </div>
                 <div className="attr-row">
                   <span className="attr-name">Implementing Agency</span>
-                  <span className="attr-value"><b>{pA.agency}</b> (Rural Dev Agency)</span>
+                  <span className="attr-value"><b>{pA?.agency || 'N/A'}</b></span>
                 </div>
                 <div className="attr-row">
                   <span className="attr-name">Sanction Date</span>
-                  <span className="attr-value">{pA.sanctionDate}</span>
+                  <span className="attr-value">{pA?.sanctionDate || '2024-01-01'}</span>
                 </div>
                 <div className="attr-row">
                   <span className="attr-name">Work Scope</span>
-                  <span className="attr-value">{pA.description}</span>
+                  <span className="attr-value">{pA?.description || 'N/A'}</span>
                 </div>
               </div>
             </div>
@@ -134,41 +134,41 @@ export default function DuplicateComparisonModal({
             <div className="comparison-col candidate-case-col">
               <div className="col-badge candidate">
                 <span>{t('inv_candidate_match')}</span>
-                <b>{pB.id}</b>
+                <b>{pB?.id}</b>
               </div>
 
-              <h4 className="col-project-title">{pB.name}</h4>
+              <h4 className="col-project-title">{pB?.name}</h4>
 
               <div className="attr-list">
                 <div className="attr-row">
                   <span className="attr-name">Sector</span>
-                  <span className="attr-value">{pB.sector}</span>
+                  <span className="attr-value">{pB?.sector || 'Infrastructure'}</span>
                 </div>
                 <div className="attr-row">
                   <span className="attr-name">Location</span>
-                  <span className="attr-value">{pB.district}, {pB.state}</span>
+                  <span className="attr-value">{pB?.district}, {pB?.state}</span>
                 </div>
                 <div className="attr-row">
                   <span className="attr-name">Coordinates</span>
                   <span className="attr-value">
-                    {pB.latitude || 25.3188}° N, {pB.longitude || 82.9749}° E
+                    {pB?.latitude || 25.3188}° N, {pB?.longitude || 82.9749}° E
                   </span>
                 </div>
                 <div className="attr-row">
                   <span className="attr-name">Sanction Amount</span>
-                  <span className="attr-value">₹{(pB.sanctionedAmount / 100000).toFixed(1)} Lakh</span>
+                  <span className="attr-value">₹{((pB?.sanctionedAmount || 0) / 100000).toFixed(1)} Lakh</span>
                 </div>
                 <div className="attr-row">
                   <span className="attr-name">Reported Spend</span>
-                  <span className="attr-value">₹{(pB.spentAmount / 100000).toFixed(1)} Lakh (98%)</span>
+                  <span className="attr-value">₹{((pB?.spentAmount || 0) / 100000).toFixed(1)} Lakh</span>
                 </div>
                 <div className="attr-row">
                   <span className="attr-name">Physical Progress</span>
-                  <span className="attr-value text-brand">{pB.physicalProgress}% (Completed)</span>
+                  <span className="attr-value text-brand">{pB?.physicalProgress || 0}%</span>
                 </div>
                 <div className="attr-row">
                   <span className="attr-name">Implementing Agency</span>
-                  <span className="attr-value"><b>{pB.agency}</b> (State PWD - UP)</span>
+                  <span className="attr-value"><b>{pB?.agency || 'N/A'}</b></span>
                 </div>
                 <div className="attr-row">
                   <span className="attr-name">Sanction Date</span>

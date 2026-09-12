@@ -11,7 +11,7 @@ export default function InvestigationBrief({ project }) {
     {
       num: '01',
       title: 'Disproportionate Fund Disbursement',
-      desc: `₹${(p.spentAmount / 100000).toFixed(1)}L disbursed (183% of sanction) against only 55% verified physical completion. Requires reconciliation with MB book entries.`,
+      desc: `₹${(((p?.spentAmount || 0)) / 100000).toFixed(1)}L disbursed against ${p?.physicalProgress || 0}% verified physical completion. Requires reconciliation with MB book entries.`,
     },
     {
       num: '02',
@@ -21,7 +21,7 @@ export default function InvestigationBrief({ project }) {
     {
       num: '03',
       title: 'Agency Milestone Compliance History',
-      desc: `Agency ${p.agency} has 3 concurrent delayed projects in the district. Cross-verify contractor labor muster rolls and bitumen test reports.`,
+      desc: `Agency ${p?.agency || 'N/A'} has active projects in the district. Cross-verify contractor labor muster rolls and bitumen test reports.`,
     },
   ];
 

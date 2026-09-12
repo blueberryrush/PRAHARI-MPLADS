@@ -40,7 +40,7 @@ export default function InvestigationAssignmentModal({
           <div>
             <span className="eyebrow">{t('inv_workspace_eyebrow')}</span>
             <h3>{t('inv_assign_modal_title')}</h3>
-            <p className="sub-text">Case {project.id} · {project.name}</p>
+            <p className="sub-text">Case {project?.id} · {project?.name}</p>
           </div>
           <button type="button" className="close-btn" onClick={onClose}>
             <X size={18} />

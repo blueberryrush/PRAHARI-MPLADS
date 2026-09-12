@@ -91,6 +91,7 @@ export function detectDuplicates(projectList = projects, threshold = 0.65) {
 // 3. RISK SCORING (Multi-factor weighted)
 // ============================================================
 export function calculateRiskScore(project) {
+  if (!project) return { score: 0, level: 'low', factors: ['No project data available'] };
   let score = 0;
   const factors = [];
 

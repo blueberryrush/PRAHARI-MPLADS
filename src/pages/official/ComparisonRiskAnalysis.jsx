@@ -1,20 +1,20 @@
-import { useMemo, useState } from 'react';
+﻿import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { projects, benchmarks } from '../../data/mockData';
 import { findRedFlagScenarios, compareProjects } from '../../data/aiEngine';
 import AnimatedCounter from '../../components/AnimatedCounter';
-import { BarChart, ScatterChart } from '../../components/Charts';
-import { GitCompare, AlertTriangle, CheckCircle, Flag, TrendingUp } from 'lucide-react';
+import { GitCompare, AlertTriangle, CheckCircle2, Flag, TrendingUp, ArrowRight, ShieldCheck, DollarSign, Clock } from 'lucide-react';
 
-const fadeUp = { hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.5 } } };
-const stagger = { visible: { transition: { staggerChildren: 0.1 } } };
+const fadeUp = { hidden: { opacity: 0, y: 15 }, visible: { opacity: 1, y: 0, transition: { duration: 0.4 } } };
+const stagger = { visible: { transition: { staggerChildren: 0.08 } } };
 
 export default function ComparisonRiskAnalysis() {
   const { t, lang } = useLanguage();
+  const hi = lang === 'hi';
   const redFlagScenarios = useMemo(() => findRedFlagScenarios(projects), []);
-  const [selectedA, setSelectedA] = useState('');
-  const [selectedB, setSelectedB] = useState('');
+  const [selectedA, setSelectedA] = useState('PRJ001');
+  const [selectedB, setSelectedB] = useState('PRJ002');
 
   const manualComparison = useMemo(() => {
     if (!selectedA || !selectedB || selectedA === selectedB) return null;
@@ -29,175 +29,344 @@ export default function ComparisonRiskAnalysis() {
   const timeFlags = redFlagScenarios.filter(s => s.timeRedFlag).length;
 
   return (
-    <div className="page-content">
+    <div className="page-content comparison-risk-page">
       <motion.div initial="hidden" animate="visible" variants={stagger}>
-        <motion.div className="page-header" variants={fadeUp}>
-          <h1>{t('comp_title')}</h1>
-          <p>{t('comp_subtitle')}</p>
-        </motion.div>
-
-        {/* KPIs */}
-        <motion.div className="grid-4" variants={fadeUp} style={{ marginBottom: 24 }}>
-          {[
-            { icon: <Flag size={24} />, bg: 'rgba(214,48,49,0.1)', color: '#D63031', value: totalRedFlags, label: lang === 'hi' ? 'रेड फ्लैग परिदृश्य' : 'Red Flag Scenarios' },
-            { icon: <TrendingUp size={24} />, bg: 'rgba(255,107,107,0.1)', color: '#FF6B6B', value: costFlags, label: t('comp_cost_deviation') },
-            { icon: <AlertTriangle size={24} />, bg: 'rgba(253,203,110,0.2)', color: '#E17055', value: timeFlags, label: t('comp_time_deviation') },
-            { icon: <CheckCircle size={24} />, bg: 'rgba(0,184,148,0.1)', color: '#00B894', value: projects.length - totalRedFlags, label: t('comp_green') },
-          ].map((card, i) => (
-            <motion.div key={i} className="card-stat" variants={fadeUp}>
-              <div className="stat-icon" style={{ background: card.bg, color: card.color }}>{card.icon}</div>
-              <div className="stat-value"><AnimatedCounter end={card.value} /></div>
-              <div className="stat-label">{card.label}</div>
-            </motion.div>
-          ))}
-        </motion.div>
-
-        {/* Manual Comparison */}
-        <motion.div variants={fadeUp} style={{ marginBottom: 24 }}>
-          <div className="chart-card">
-            <div className="chart-header"><h3 className="chart-title">🔍 {t('comp_select_projects')}</h3></div>
-            <div style={{ display: 'flex', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
-              <select className="select" style={{ flex: 1, minWidth: 200 }} value={selectedA} onChange={e => setSelectedA(e.target.value)}>
-                <option value="">{t('dup_project_a')}...</option>
-                {projects.map(p => <option key={p.id} value={p.id}>{p.id} - {p.name.substring(0, 40)}</option>)}
-              </select>
-              <div style={{ display: 'flex', alignItems: 'center' }}>
-                <div className="vs-badge">VS</div>
-              </div>
-              <select className="select" style={{ flex: 1, minWidth: 200 }} value={selectedB} onChange={e => setSelectedB(e.target.value)}>
-                <option value="">{t('dup_project_b')}...</option>
-                {projects.map(p => <option key={p.id} value={p.id}>{p.id} - {p.name.substring(0, 40)}</option>)}
-              </select>
+        
+        {/* Workspace Head */}
+        <motion.div className="workspace-head" variants={fadeUp}>
+          <div>
+            <div className="eyebrow" style={{ color: '#059669' }}>
+              {hi ? 'सांख्यिकीय विचलन एवं बेंचमार्क' : 'BENCHMARK COMPARISON & ANOMALY DETECTION'}
             </div>
+            <h2>{t('comp_title')}</h2>
+            <p>{t('comp_subtitle')}</p>
+          </div>
 
-            {manualComparison && (
-              <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.3 }}>
-                <div className="comparison-container">
-                  <div className={`comparison-card ${!manualComparison.isRedFlag ? 'green' : ''}`}>
-                    <h4 style={{ marginBottom: 12, fontSize: '0.95rem' }}>{manualComparison.projectA.name}</h4>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                      <div><span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-tertiary)' }}>{t('comp_actual_cost')}</span><div style={{ fontWeight: 700 }}>₹{(manualComparison.projectA.spentAmount / 100000).toFixed(1)}L</div></div>
-                      <div><span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-tertiary)' }}>{lang === 'hi' ? 'अवधि' : 'Duration'}</span><div style={{ fontWeight: 700 }}>{manualComparison.timeAMonths} {t('common_months')}</div></div>
-                      <div><span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-tertiary)' }}>{t('common_sector')}</span><div style={{ fontWeight: 500 }}>{manualComparison.projectA.sector}</div></div>
-                      <div><span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-tertiary)' }}>{t('fin_status')}</span><div style={{ fontWeight: 500 }}>{manualComparison.projectA.status}</div></div>
-                    </div>
-                  </div>
-
-                  <div className="comparison-vs"><div className="vs-badge">VS</div></div>
-
-                  <div className={`comparison-card ${manualComparison.isRedFlag ? 'red-flagged' : 'green'}`}>
-                    <h4 style={{ marginBottom: 12, fontSize: '0.95rem' }}>{manualComparison.projectB.name}</h4>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                      <div><span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-tertiary)' }}>{t('comp_actual_cost')}</span><div style={{ fontWeight: 700, color: manualComparison.costRedFlag ? '#D63031' : 'inherit' }}>₹{(manualComparison.projectB.spentAmount / 100000).toFixed(1)}L</div></div>
-                      <div><span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-tertiary)' }}>{lang === 'hi' ? 'अवधि' : 'Duration'}</span><div style={{ fontWeight: 700, color: manualComparison.timeRedFlag ? '#D63031' : 'inherit' }}>{manualComparison.timeBMonths} {t('common_months')}</div></div>
-                      <div><span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-tertiary)' }}>{t('common_sector')}</span><div style={{ fontWeight: 500 }}>{manualComparison.projectB.sector}</div></div>
-                      <div><span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-tertiary)' }}>{t('fin_status')}</span><div style={{ fontWeight: 500 }}>{manualComparison.projectB.status}</div></div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Deviation badges */}
-                <div style={{ display: 'flex', gap: 12, marginTop: 16, justifyContent: 'center', flexWrap: 'wrap' }}>
-                  <div style={{ padding: '8px 16px', borderRadius: 'var(--radius-full)', background: manualComparison.costRedFlag ? 'rgba(214,48,49,0.1)' : 'rgba(0,184,148,0.1)', fontWeight: 700, fontSize: '0.85rem', color: manualComparison.costRedFlag ? '#D63031' : '#00B894' }}>
-                    {t('comp_cost_deviation')}: {manualComparison.costDiff > 0 ? '+' : ''}{manualComparison.costDiff}% {manualComparison.costRedFlag ? '🚩' : '✅'}
-                  </div>
-                  <div style={{ padding: '8px 16px', borderRadius: 'var(--radius-full)', background: manualComparison.timeRedFlag ? 'rgba(214,48,49,0.1)' : 'rgba(0,184,148,0.1)', fontWeight: 700, fontSize: '0.85rem', color: manualComparison.timeRedFlag ? '#D63031' : '#00B894' }}>
-                    {t('comp_time_deviation')}: {manualComparison.timeDiff > 0 ? '+' : ''}{manualComparison.timeDiff}% {manualComparison.timeRedFlag ? '🚩' : '✅'}
-                  </div>
-                </div>
-
-                {manualComparison.reasons.length > 0 && (
-                  <div style={{ marginTop: 12, padding: 12, background: 'rgba(214,48,49,0.05)', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(214,48,49,0.15)' }}>
-                    {manualComparison.reasons.map((r, i) => <div key={i} style={{ fontSize: '0.85rem', color: '#D63031', marginBottom: 4 }}>⚠️ {r}</div>)}
-                  </div>
-                )}
-              </motion.div>
-            )}
+          <div className="demo-notice" style={{ margin: 0 }}>
+            <span className="pulse-dot" style={{ background: '#C85A32' }} />
+            <span>{totalRedFlags} {hi ? 'सक्रिय विचलन परिदृश्य पाए गए' : 'Active Deviation Scenarios Detected'}</span>
           </div>
         </motion.div>
 
-        {/* Auto-detected Red Flags */}
-        <motion.div variants={fadeUp} style={{ marginBottom: 24 }}>
-          <div className="chart-card">
-            <div className="chart-header">
-              <h3 className="chart-title">🚩 {t('comp_scenario_title')}</h3>
-              <span className="badge badge-critical">{redFlagScenarios.length} {lang === 'hi' ? 'पाए गए' : 'detected'}</span>
+        {/* KPI Strip */}
+        <motion.div className="kpi-grid" variants={fadeUp} style={{ marginBottom: 20 }}>
+          <div className="kpi-panel">
+            <div className="kpi-accent critical" />
+            <span className="kpi-label">{hi ? 'रेड फ्लैग परिदृश्य' : 'Red Flag Scenarios'}</span>
+            <strong style={{ color: '#C85A32' }}><AnimatedCounter end={totalRedFlags} /></strong>
+            <small>Disproportionate costs / delays</small>
+          </div>
+
+          <div className="kpi-panel">
+            <div className="kpi-accent critical" />
+            <span className="kpi-label">{t('comp_cost_deviation')}</span>
+            <strong style={{ color: '#C85A32' }}><AnimatedCounter end={costFlags} /></strong>
+            <small>Exceeds peer cost baseline</small>
+          </div>
+
+          <div className="kpi-panel">
+            <div className="kpi-accent amber" />
+            <span className="kpi-label">{t('comp_time_deviation')}</span>
+            <strong style={{ color: '#D97706' }}><AnimatedCounter end={timeFlags} /></strong>
+            <small>Schedule overrun detected</small>
+          </div>
+
+          <div className="kpi-panel">
+            <div className="kpi-accent sage" />
+            <span className="kpi-label">{t('comp_green')}</span>
+            <strong style={{ color: '#059669' }}><AnimatedCounter end={projects.length - totalRedFlags} /></strong>
+            <small>Within acceptable variance</small>
+          </div>
+
+          <div className="kpi-panel">
+            <div className="kpi-accent teal" />
+            <span className="kpi-label">{hi ? 'स्वीकृत बेंचमार्क' : 'Benchmark Profiles'}</span>
+            <strong>{Object.keys(benchmarks).length}</strong>
+            <small>Normative unit baselines</small>
+          </div>
+        </motion.div>
+
+        {/* Interactive Manual Comparison Panel */}
+        <motion.div variants={fadeUp} className="panel" style={{ padding: 24, marginBottom: 24 }}>
+          <div className="panel-head" style={{ marginBottom: 18 }}>
+            <div>
+              <span className="eyebrow">{hi ? 'आमने-सामने तुलना' : 'HEAD-TO-HEAD PROJECT ARBITRATION'}</span>
+              <h3>{t('comp_select_projects')}</h3>
+            </div>
+          </div>
+
+          {/* Selectors */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 14, alignItems: 'center', marginBottom: 20 }}>
+            <select 
+              className="select wide" 
+              value={selectedA} 
+              onChange={e => setSelectedA(e.target.value)}
+              style={{ background: 'var(--surface)', height: 42, fontSize: 12, fontWeight: 600 }}
+            >
+              <option value="">{t('dup_project_a')}...</option>
+              {projects.map(p => (
+                <option key={p.id} value={p.id}>{p.id} - {p.name.substring(0, 45)}</option>
+              ))}
+            </select>
+
+            <div style={{
+              width: 38,
+              height: 38,
+              borderRadius: '50%',
+              background: '#1E3A2B',
+              color: '#34D399',
+              display: 'grid',
+              placeItems: 'center',
+              fontWeight: 850,
+              fontSize: 12,
+              border: '1.5px solid #2D5A3E'
+            }}>
+              VS
             </div>
 
-            {redFlagScenarios.slice(0, 6).map((scenario, idx) => (
-              <motion.div
+            <select 
+              className="select wide" 
+              value={selectedB} 
+              onChange={e => setSelectedB(e.target.value)}
+              style={{ background: 'var(--surface)', height: 42, fontSize: 12, fontWeight: 600 }}
+            >
+              <option value="">{t('dup_project_b')}...</option>
+              {projects.map(p => (
+                <option key={p.id} value={p.id}>{p.id} - {p.name.substring(0, 45)}</option>
+              ))}
+            </select>
+          </div>
+
+          {manualComparison && (
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: 16,
+              background: 'var(--surface)',
+              borderRadius: 14,
+              padding: 18,
+              border: '1px solid var(--line)'
+            }}>
+              {/* Project A Box */}
+              <div style={{
+                background: '#fff',
+                borderRadius: 12,
+                padding: 18,
+                border: '1px solid var(--line)'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <code style={{ fontSize: 11, color: '#059669', fontWeight: 700 }}>{manualComparison.projectA.id}</code>
+                  <span style={{ fontSize: 10, background: 'rgba(5, 150, 105, 0.1)', color: '#059669', padding: '3px 8px', borderRadius: 6, fontWeight: 700 }}>
+                    Benchmark Reference
+                  </span>
+                </div>
+                <h4 style={{ margin: '0 0 12px', fontSize: 14 }}>{manualComparison.projectA.name}</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, fontSize: 12 }}>
+                  <div><span style={{ color: 'var(--muted)', fontSize: 11 }}>{t('comp_actual_cost')}</span><b style={{ display: 'block' }}>₹{((manualComparison.projectA.spentAmount || 0) / 100000).toFixed(1)} Lakh</b></div>
+                  <div><span style={{ color: 'var(--muted)', fontSize: 11 }}>{hi ? 'अवधि' : 'Duration'}</span><b style={{ display: 'block' }}>{manualComparison.timeAMonths} {t('common_months')}</b></div>
+                  <div><span style={{ color: 'var(--muted)', fontSize: 11 }}>{t('common_sector')}</span><b style={{ display: 'block' }}>{manualComparison.projectA.sector}</b></div>
+                  <div><span style={{ color: 'var(--muted)', fontSize: 11 }}>{t('fin_status')}</span><b style={{ display: 'block' }}>{manualComparison.projectA.status}</b></div>
+                </div>
+              </div>
+
+              {/* Project B Box */}
+              <div style={{
+                background: '#fff',
+                borderRadius: 12,
+                padding: 18,
+                border: `1px solid ${manualComparison.isRedFlag ? '#C85A32' : '#059669'}`
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <code style={{ fontSize: 11, color: manualComparison.isRedFlag ? '#C85A32' : '#059669', fontWeight: 700 }}>
+                    {manualComparison.projectB.id}
+                  </code>
+                  <span style={{
+                    fontSize: 10,
+                    background: manualComparison.isRedFlag ? 'rgba(200, 90, 50, 0.1)' : 'rgba(5, 150, 105, 0.1)',
+                    color: manualComparison.isRedFlag ? '#C85A32' : '#059669',
+                    padding: '3px 8px',
+                    borderRadius: 6,
+                    fontWeight: 700
+                  }}>
+                    {manualComparison.isRedFlag ? 'Variance Flagged' : 'Normal Variance'}
+                  </span>
+                </div>
+                <h4 style={{ margin: '0 0 12px', fontSize: 14 }}>{manualComparison.projectB.name}</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, fontSize: 12 }}>
+                  <div>
+                    <span style={{ color: 'var(--muted)', fontSize: 11 }}>{t('comp_actual_cost')}</span>
+                    <b style={{ display: 'block', color: manualComparison.costRedFlag ? '#C85A32' : 'inherit' }}>
+                      ₹{((manualComparison.projectB.spentAmount || 0) / 100000).toFixed(1)} Lakh
+                    </b>
+                  </div>
+                  <div>
+                    <span style={{ color: 'var(--muted)', fontSize: 11 }}>{hi ? 'अवधि' : 'Duration'}</span>
+                    <b style={{ display: 'block', color: manualComparison.timeRedFlag ? '#C85A32' : 'inherit' }}>
+                      {manualComparison.timeBMonths} {t('common_months')}
+                    </b>
+                  </div>
+                  <div><span style={{ color: 'var(--muted)', fontSize: 11 }}>{t('common_sector')}</span><b style={{ display: 'block' }}>{manualComparison.projectB.sector}</b></div>
+                  <div><span style={{ color: 'var(--muted)', fontSize: 11 }}>{t('fin_status')}</span><b style={{ display: 'block' }}>{manualComparison.projectB.status}</b></div>
+                </div>
+
+                {/* Variance Chips */}
+                <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+                  <span style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    padding: '4px 8px',
+                    borderRadius: 6,
+                    background: manualComparison.costRedFlag ? 'rgba(200, 90, 50, 0.12)' : 'rgba(5, 150, 105, 0.1)',
+                    color: manualComparison.costRedFlag ? '#C85A32' : '#059669'
+                  }}>
+                    Cost Variance: {manualComparison.costDiff > 0 ? '+' : ''}{manualComparison.costDiff}% {manualComparison.costRedFlag ? '⚠' : '✓'}
+                  </span>
+                  <span style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    padding: '4px 8px',
+                    borderRadius: 6,
+                    background: manualComparison.timeRedFlag ? 'rgba(200, 90, 50, 0.12)' : 'rgba(5, 150, 105, 0.1)',
+                    color: manualComparison.timeRedFlag ? '#C85A32' : '#059669'
+                  }}>
+                    Time Variance: {manualComparison.timeDiff > 0 ? '+' : ''}{manualComparison.timeDiff}% {manualComparison.timeRedFlag ? '⚠' : '✓'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+        </motion.div>
+
+        {/* Auto-detected Red Flags Split Cards */}
+        <motion.div variants={fadeUp} className="panel" style={{ padding: 24, marginBottom: 24 }}>
+          <div className="panel-head" style={{ marginBottom: 18 }}>
+            <div>
+              <span className="eyebrow" style={{ color: '#C85A32' }}>{hi ? 'स्वचालित विसंगति चेतावनी' : 'DETECTED PEER SKEW'}</span>
+              <h3>🚩 {t('comp_scenario_title')}</h3>
+            </div>
+            <span style={{ fontSize: 11, fontWeight: 700, background: 'rgba(200, 90, 50, 0.1)', color: '#C85A32', padding: '4px 10px', borderRadius: 8 }}>
+              {redFlagScenarios.length} {hi ? 'परिदृश्य पाए गए' : 'Anomalous Pairs'}
+            </span>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12 }}>
+            {redFlagScenarios.slice(0, 5).map((scenario, idx) => (
+              <div 
                 key={idx}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: idx * 0.1 }}
                 style={{
-                  padding: 16, marginBottom: 12, borderRadius: 'var(--radius-md)',
-                  border: '1px solid rgba(214,48,49,0.2)', background: 'rgba(214,48,49,0.03)',
+                  background: 'var(--surface)',
+                  borderRadius: 12,
+                  padding: 16,
+                  border: '1px solid rgba(200, 90, 50, 0.25)',
+                  display: 'grid',
+                  gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr)',
+                  gap: 16,
+                  alignItems: 'center'
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: 8 }}>
-                  <div>
-                    <span className="badge badge-critical" style={{ marginBottom: 8, display: 'inline-flex' }}>{t('comp_red_flag')}</span>
-                    <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>{scenario.projectA.sector}</div>
+                {/* Peer A: Baseline Project */}
+                <div style={{ background: '#fff', borderRadius: 8, padding: 12, border: '1px solid var(--line)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 4 }}>
+                    <code style={{ color: '#059669', fontWeight: 700 }}>✓ {scenario.projectA.id}</code>
+                    <span style={{ color: 'var(--muted)' }}>{scenario.projectA.sector}</span>
                   </div>
-                  <div style={{ textAlign: 'right', fontSize: '0.8rem' }}>
-                    {scenario.costRedFlag && <div style={{ color: '#D63031', fontWeight: 700 }}>{t('comp_cost_deviation')}: {scenario.costDiff > 0 ? '+' : ''}{scenario.costDiff}%</div>}
-                    {scenario.timeRedFlag && <div style={{ color: '#E17055', fontWeight: 700 }}>{t('comp_time_deviation')}: {scenario.timeDiff > 0 ? '+' : ''}{scenario.timeDiff}%</div>}
-                  </div>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 12, alignItems: 'center' }}>
-                  <div style={{ padding: 10, background: 'rgba(0,184,148,0.05)', borderRadius: 8, border: '1px solid rgba(0,184,148,0.15)' }}>
-                    <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-tertiary)' }}>✅ {scenario.projectA.id}</div>
-                    <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: 2 }}>{scenario.projectA.name.substring(0, 35)}</div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>₹{(scenario.projectA.spentAmount / 100000).toFixed(1)}L • {scenario.timeAMonths}m</div>
-                  </div>
-                  <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 800, color: 'var(--primary)' }}>VS</div>
-                  <div style={{ padding: 10, background: 'rgba(214,48,49,0.05)', borderRadius: 8, border: '1px solid rgba(214,48,49,0.15)' }}>
-                    <div style={{ fontSize: '12px', fontWeight: 600, color: '#D63031' }}>🚩 {scenario.projectB.id}</div>
-                    <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: 2 }}>{scenario.projectB.name.substring(0, 35)}</div>
-                    <div style={{ fontSize: '12px', color: '#D63031', fontWeight: 600 }}>₹{(scenario.projectB.spentAmount / 100000).toFixed(1)}L • {scenario.timeBMonths}m</div>
+                  <b style={{ fontSize: 13, display: 'block', marginBottom: 4 }}>{scenario.projectA.name}</b>
+                  <div style={{ fontSize: 11, color: 'var(--muted)' }}>
+                    Cost: ₹{((scenario.projectA.spentAmount || 0) / 100000).toFixed(1)}L · Duration: {scenario.timeAMonths}m
                   </div>
                 </div>
-                {scenario.reasons.length > 0 && (
-                  <div style={{ marginTop: 8, fontSize: '0.8rem', color: '#D63031' }}>
-                    {scenario.reasons.map((r, i) => <span key={i}>⚠️ {r}{i < scenario.reasons.length - 1 ? ' | ' : ''}</span>)}
+
+                {/* VS Badge with Variance Tag */}
+                <div style={{ textAlign: 'center', padding: '0 8px' }}>
+                  <div style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: '50%',
+                    background: '#1E3A2B',
+                    color: '#34D399',
+                    display: 'grid',
+                    placeItems: 'center',
+                    fontSize: 10,
+                    fontWeight: 800,
+                    margin: '0 auto 6px'
+                  }}>
+                    VS
                   </div>
-                )}
-              </motion.div>
+                  <b style={{ fontSize: 11, color: '#C85A32', display: 'block' }}>
+                    {scenario.costDiff > 0 ? `+${scenario.costDiff}%` : `${scenario.costDiff}%`} Cost
+                  </b>
+                </div>
+
+                {/* Peer B: Outlier Project */}
+                <div style={{ background: '#fff', borderRadius: 8, padding: 12, border: '1px solid rgba(200, 90, 50, 0.35)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 4 }}>
+                    <code style={{ color: '#C85A32', fontWeight: 700 }}>⚠ {scenario.projectB.id}</code>
+                    <span style={{ color: '#C85A32', fontWeight: 700 }}>Overrun Alert</span>
+                  </div>
+                  <b style={{ fontSize: 13, display: 'block', marginBottom: 4 }}>{scenario.projectB.name}</b>
+                  <div style={{ fontSize: 11, color: '#C85A32', fontWeight: 600 }}>
+                    Cost: ₹{((scenario.projectB.spentAmount || 0) / 100000).toFixed(1)}L · Duration: {scenario.timeBMonths}m
+                  </div>
+                </div>
+              </div>
             ))}
           </div>
         </motion.div>
 
-        {/* Benchmark Database */}
-        <motion.div variants={fadeUp}>
-          <div className="chart-card">
-            <div className="chart-header"><h3 className="chart-title">📊 {t('comp_benchmark_db')}</h3></div>
-            <div className="table-container" style={{ border: 'none' }}>
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>{t('comp_project_type')}</th>
-                    <th>{t('comp_avg_cost')}</th>
-                    <th>{t('comp_avg_time')}</th>
-                    <th>{lang === 'hi' ? 'लागत सीमा' : 'Cost Threshold'}</th>
-                    <th>{lang === 'hi' ? 'समय सीमा' : 'Time Threshold'}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {Object.entries(benchmarks).map(([sector, data]) => (
-                    <tr key={sector}>
-                      <td style={{ fontWeight: 600 }}>{sector}</td>
-                      <td>₹{(data.avgCostPerKm || data.avgCostPerUnit || data.avgCostPerRoom || data.avgCostPerCenter || data.avgCostPerHall || data.avgCostPerLight || data.avgCostPerProject || data.avgCostPerFacility || 0).toLocaleString('en-IN')}</td>
-                      <td>{data.avgTimeMonths} {t('common_months')}</td>
-                      <td><span className="badge badge-warning">{(data.costThreshold * 100)}%</span></td>
-                      <td><span className="badge badge-warning">{(data.timeThreshold * 100)}%</span></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+        {/* Normative Benchmark Database Table */}
+        <motion.div variants={fadeUp} className="panel" style={{ padding: 24 }}>
+          <div className="panel-head" style={{ marginBottom: 18 }}>
+            <div>
+              <span className="eyebrow">{hi ? 'मानक डेटाबेस' : 'GOVERNMENT NORMATIVE BENCHMARKS'}</span>
+              <h3>📊 {t('comp_benchmark_db')}</h3>
             </div>
+            <span style={{ fontSize: 11, color: 'var(--muted)' }}>
+              Source: MoSPI Official Cost Schedule & PWD Plinth Rates
+            </span>
+          </div>
+
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, textAlign: 'left' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--line)', color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase' }}>
+                  <th style={{ padding: '10px 12px' }}>{t('comp_project_type')}</th>
+                  <th style={{ padding: '10px 12px' }}>{t('comp_avg_cost')}</th>
+                  <th style={{ padding: '10px 12px' }}>{t('comp_avg_time')}</th>
+                  <th style={{ padding: '10px 12px' }}>{hi ? 'लागत सीमा' : 'Cost Variance Cap'}</th>
+                  <th style={{ padding: '10px 12px' }}>{hi ? 'समय सीमा' : 'Schedule Variance Cap'}</th>
+                  <th style={{ padding: '10px 12px' }}>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(benchmarks).map(([sector, data]) => (
+                  <tr key={sector} style={{ borderBottom: '1px solid var(--line)' }}>
+                    <td style={{ padding: '12px', fontWeight: 700 }}>{sector}</td>
+                    <td style={{ padding: '12px' }}>
+                      ₹{(data.avgCostPerKm || data.avgCostPerUnit || data.avgCostPerRoom || data.avgCostPerCenter || data.avgCostPerHall || data.avgCostPerLight || data.avgCostPerProject || data.avgCostPerFacility || 0).toLocaleString('en-IN')}
+                    </td>
+                    <td style={{ padding: '12px' }}>{data.avgTimeMonths} {t('common_months')}</td>
+                    <td style={{ padding: '12px' }}>
+                      <span style={{ background: 'rgba(217, 119, 6, 0.1)', color: '#D97706', padding: '3px 8px', borderRadius: 6, fontWeight: 700, fontSize: 11 }}>
+                        {(data.costThreshold * 100)}%
+                      </span>
+                    </td>
+                    <td style={{ padding: '12px' }}>
+                      <span style={{ background: 'rgba(217, 119, 6, 0.1)', color: '#D97706', padding: '3px 8px', borderRadius: 6, fontWeight: 700, fontSize: 11 }}>
+                        {(data.timeThreshold * 100)}%
+                      </span>
+                    </td>
+                    <td style={{ padding: '12px' }}>
+                      <span style={{ color: '#059669', fontSize: 11, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        <ShieldCheck size={13} /> Active Standard
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </motion.div>
+
       </motion.div>
     </div>
   );

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
   ArrowRight,
   CheckCircle2,
@@ -48,8 +48,10 @@ import CalibrationToast from '../../components/CalibrationToast';
 export default function InvestigationCentre() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, getRoleLabel } = useAuth();
   const { t } = useLanguage();
+  const safeT = (key, fallback = '') => (t(key) || fallback || key);
 
   const {
     getCase,
@@ -141,14 +143,17 @@ export default function InvestigationCentre() {
     setFeedback('');
   };
 
+  const activeCases = baseCases && baseCases.length > 0 ? baseCases : (projects && projects.length > 0 ? projects : [targetProject].filter(Boolean));
   const selectedCase =
-    projects.find((x) => x.id.toUpperCase() === selected.toUpperCase()) ||
+    activeCases.find((x) => String(x.id).toUpperCase() === String(selected).toUpperCase()) ||
+    activeCases.find((x) => String(x.id).toUpperCase() === String(id).toUpperCase()) ||
     targetProject ||
-    baseCases[0] ||
-    projects[1];
+    activeCases[0] ||
+    {};
 
   const p = selectedCase;
-  const risk = calculateRiskScore(p);
+  const signals = selectedCase?.signals || (p?.id === 'PRJ002' ? ['financial', 'spatial', 'timeline'] : ['verification']);
+  const risk = p?.id ? calculateRiskScore(p) : { score: 0, level: 'low', factors: [] };
   const caseData = getCase(p?.id || 'PRJ002');
 
   const investigatorContext =
@@ -160,12 +165,35 @@ export default function InvestigationCentre() {
           ? `Constituency Review Desk · ${user?.constituency || 'Varanasi'}`
           : `District Investigation Desk · ${user?.district || 'Varanasi'}`;
 
-  const investigatorRole = getRoleLabel(user?.role || 'district_authority');
+  const investigatorRole = getRoleLabel ? getRoleLabel(user?.role || 'district_authority') : (user?.role || 'Investigator');
+
+  // Early return if no projects available at all
+  if (!p || !p.id) {
+    return (
+      <div className="page-content investigation-page">
+        <div className="workspace-head">
+          <div>
+            <div className="eyebrow">{safeT('inv_workspace_eyebrow', 'INVESTIGATION DOSSIER')}</div>
+            <h2>{safeT('inv_title', 'Investigation Centre')}</h2>
+            <p>{safeT('inv_subtitle', 'Review flagged anomalies and verify project integrity')}</p>
+          </div>
+        </div>
+        <div className="panel" style={{ padding: 32, textAlign: 'center' }}>
+          <AlertTriangle size={28} style={{ marginBottom: 12, opacity: 0.5 }} />
+          <h3>No Cases Available</h3>
+          <p style={{ opacity: 0.7 }}>No flagged projects found in your jurisdiction. Check back later or adjust your review filters.</p>
+        </div>
+      </div>
+    );
+  }
 
   const handleSelectCase = (caseId) => {
     setSelected(caseId);
     resetCaseState();
-    navigate(`/official/investigation/${caseId}`);
+    const prefix = location.pathname.startsWith('/official/investigations')
+      ? '/official/investigations'
+      : '/official/investigation';
+    navigate(`${prefix}/${caseId}`);
   };
 
   // Filter queue logic across 11 filters + search query
@@ -175,10 +203,10 @@ export default function InvestigationCentre() {
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const matchesQuery =
-          c.id.toLowerCase().includes(q) ||
-          c.name.toLowerCase().includes(q) ||
-          c.district.toLowerCase().includes(q) ||
-          c.agency.toLowerCase().includes(q);
+          (c.id || '').toLowerCase().includes(q) ||
+          (c.name || '').toLowerCase().includes(q) ||
+          (c.district || '').toLowerCase().includes(q) ||
+          (c.agency || '').toLowerCase().includes(q);
         if (!matchesQuery) return false;
       }
 
@@ -187,25 +215,25 @@ export default function InvestigationCentre() {
 
       switch (queueFilter) {
         case 'high':
-          return cRisk.score >= 50 || cRisk.level === 'high' || cRisk.level === 'critical';
+          return (cRisk?.score || 0) >= 50 || cRisk?.level === 'high' || cRisk?.level === 'critical';
         case 'financial':
-          return c.spentAmount > c.sanctionedAmount || (c.financialProgress - c.physicalProgress > 30);
+          return (c?.spentAmount || 0) > (c?.sanctionedAmount || 0) || (((c?.financialProgress || 0) - (c?.physicalProgress || 0)) > 30);
         case 'spatial':
-          return c.id === 'PRJ002' || c.id === 'PRJ046' || c.id === 'PRJ047' || (c.description && c.description.includes('SIMILAR'));
+          return c?.id === 'PRJ002' || c?.id === 'PRJ046' || c?.id === 'PRJ047' || (c?.description && c.description.includes('SIMILAR'));
         case 'progress':
-          return c.status === 'delayed' || c.physicalProgress < 50;
+          return c?.status === 'delayed' || (c?.physicalProgress || 0) < 50;
         case 'awaiting':
-          return (cData.evidenceItems || []).length < 3 || cData.status === 'Detected';
+          return (cData?.evidenceItems || []).length < 3 || cData?.status === 'Detected';
         case 'field':
-          return cData.status === 'Field Verification Dispatched' || c.isAnomaly;
+          return cData?.status === 'Field Verification Dispatched' || !!c?.isAnomaly;
         case 'overdue':
-          return getDueDateStatus(cData.assignment?.dueDate).cls === 'overdue';
+          return getDueDateStatus(cData?.assignment?.dueDate)?.cls === 'overdue';
         case 'assigned_me':
-          return !!cData.assignment;
+          return !!cData?.assignment;
         case 'escalated':
-          return cData.status?.toLowerCase().includes('escalated');
+          return cData?.status?.toLowerCase().includes('escalated');
         case 'resolved':
-          return cData.status === 'Resolved';
+          return cData?.status === 'Resolved';
         case 'all':
         default:
           return true;
@@ -217,7 +245,7 @@ export default function InvestigationCentre() {
   const fieldChecklistItems = [
     { key: 'item_exists', label: '1. Asset physically exists at approved site coordinates' },
     { key: 'item_dpr', label: '2. Work conforms to approved DPR specifications (width, grade, material)' },
-    { key: 'item_progress', label: `3. Physical progress matches reported milestone (${p.physicalProgress}%)` },
+    { key: 'item_progress', label: `3. Physical progress matches reported milestone (${p?.physicalProgress || 0}%)` },
     { key: 'item_plaque', label: '4. Mandatory MPLADS citizen display signboard / plaque installed' },
     { key: 'item_no_overlap', label: '5. No overlapping construction with candidate project PRJ001' },
     { key: 'item_quality', label: '6. Quality of bitumen / concrete complies with state PWD standards' },
@@ -422,7 +450,7 @@ export default function InvestigationCentre() {
                     <div className="card-meta-row">
                       <span>{c.district}</span>
                       <span>·</span>
-                      <span className="cost-tag">₹{(c.sanctionedAmount / 100000).toFixed(1)}L</span>
+                      <span className="cost-tag">₹{((c.sanctionedAmount || 0) / 100000).toFixed(1)}L</span>
                       {c.spentAmount > c.sanctionedAmount && (
                         <span className="overrun-tag">Overrun</span>
                       )}

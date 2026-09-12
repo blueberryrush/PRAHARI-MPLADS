@@ -1,16 +1,17 @@
-import { useMemo, useState } from 'react';
+﻿import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { projects } from '../../data/mockData';
 import { detectDuplicates } from '../../data/aiEngine';
 import AnimatedCounter from '../../components/AnimatedCounter';
-import { Copy, Search, CheckCircle, AlertTriangle, Globe, Percent } from 'lucide-react';
+import { Copy, Search, CheckCircle2, AlertTriangle, Globe, Percent, ArrowRight, ShieldCheck, MapPin } from 'lucide-react';
 
-const fadeUp = { hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.5 } } };
-const stagger = { visible: { transition: { staggerChildren: 0.1 } } };
+const fadeUp = { hidden: { opacity: 0, y: 15 }, visible: { opacity: 1, y: 0, transition: { duration: 0.4 } } };
+const stagger = { visible: { transition: { staggerChildren: 0.08 } } };
 
 export default function DuplicateVerification() {
   const { t, lang } = useLanguage();
+  const hi = lang === 'hi';
   const duplicates = useMemo(() => detectDuplicates(projects, 0.55), []);
   const [actions, setActions] = useState({});
 
@@ -22,109 +23,206 @@ export default function DuplicateVerification() {
   };
 
   return (
-    <div className="page-content">
+    <div className="page-content duplicate-verification-page">
       <motion.div initial="hidden" animate="visible" variants={stagger}>
-        <motion.div className="page-header" variants={fadeUp}>
-          <h1>{t('dup_title')}</h1>
-          <p>{t('dup_subtitle')}</p>
-        </motion.div>
-
-        {/* KPI */}
-        <motion.div className="grid-4" variants={fadeUp} style={{ marginBottom: 24 }}>
-          {[
-            { icon: <Search size={24} />, bg: 'rgba(0,102,255,0.1)', color: '#0066FF', value: projects.length, label: t('dup_total_scanned') },
-            { icon: <Copy size={24} />, bg: 'rgba(255,107,107,0.1)', color: '#FF6B6B', value: duplicates.length, label: t('dup_duplicates_found') },
-            { icon: <Percent size={24} />, bg: 'rgba(108,92,231,0.1)', color: '#6C5CE7', value: avgSimilarity, label: t('dup_similarity_score'), suffix: '%', decimals: 1 },
-            { icon: <Globe size={24} />, bg: 'rgba(253,203,110,0.2)', color: '#E17055', value: crossConstituency.length, label: t('dup_cross_constituency') },
-          ].map((card, i) => (
-            <motion.div key={i} className="card-stat" variants={fadeUp}>
-              <div className="stat-icon" style={{ background: card.bg, color: card.color }}>{card.icon}</div>
-              <div className="stat-value"><AnimatedCounter end={card.value} suffix={card.suffix || ''} decimals={card.decimals || 0} /></div>
-              <div className="stat-label">{card.label}</div>
-            </motion.div>
-          ))}
-        </motion.div>
-
-        {/* Duplicate Pairs */}
-        <motion.div variants={fadeUp}>
-          <div className="chart-card">
-            <div className="chart-header">
-              <h3 className="chart-title">{t('dup_pair_title')}</h3>
+        
+        {/* Workspace Head */}
+        <motion.div className="workspace-head" variants={fadeUp}>
+          <div>
+            <div className="eyebrow" style={{ color: '#059669' }}>
+              {hi ? 'स्थानिक व विवरण दोहराव निगरानी' : 'SPATIAL & SEMANTIC DUPLICATION SURVEILLANCE'}
             </div>
+            <h2>{t('dup_title')}</h2>
+            <p>{t('dup_subtitle')}</p>
+          </div>
 
-            {duplicates.map((dup, idx) => (
-              <motion.div
-                key={idx}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: idx * 0.05 }}
-                style={{
-                  display: 'grid', gridTemplateColumns: '1fr auto 1fr auto', gap: 16,
-                  padding: 20, marginBottom: 12, borderRadius: 'var(--radius-md)',
-                  border: `1px solid ${dup.combinedScore > 80 ? 'var(--risk-critical)' : dup.combinedScore > 65 ? 'var(--risk-medium)' : 'var(--border)'}`,
-                  background: dup.combinedScore > 80 ? 'rgba(214,48,49,0.03)' : 'var(--bg-card)',
-                  alignItems: 'center',
-                }}
-              >
-                {/* Project A */}
-                <div>
-                  <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 700, color: 'var(--text-tertiary)', marginBottom: 4 }}>{t('dup_project_a')}</div>
-                  <div style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: 4 }}>{dup.projectA.name}</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                    {dup.projectA.constituency} • {dup.projectA.state}<br />
-                    ₹{(dup.projectA.sanctionedAmount / 100000).toFixed(1)}L • {dup.projectA.sector}
-                  </div>
-                </div>
+          <div className="demo-notice" style={{ margin: 0 }}>
+            <span className="pulse-dot" style={{ background: '#C85A32' }} />
+            <span>{duplicates.length} {hi ? 'संदिग्ध दोहराव पहचाने गए' : 'Suspected Overlaps Identified'}</span>
+          </div>
+        </motion.div>
 
-                {/* Similarity Score */}
-                <div style={{ textAlign: 'center', minWidth: 80 }}>
-                  <div style={{
-                    width: 60, height: 60, borderRadius: '50%',
-                    background: dup.combinedScore > 80 ? 'var(--gradient-danger)' : dup.combinedScore > 65 ? 'var(--gradient-warning)' : 'var(--gradient-primary)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    color: 'white', fontFamily: 'var(--font-heading)', fontWeight: 800, fontSize: '0.9rem',
-                    margin: '0 auto 4px', boxShadow: 'var(--shadow-md)',
-                  }}>
-                    {dup.combinedScore}%
-                  </div>
-                  <div style={{ fontSize: '0.65rem', color: 'var(--text-tertiary)', fontWeight: 600 }}>{t('dup_similarity')}</div>
-                </div>
+        {/* KPI Strip */}
+        <motion.div className="kpi-grid" variants={fadeUp} style={{ marginBottom: 20 }}>
+          <div className="kpi-panel">
+            <div className="kpi-accent teal" />
+            <span className="kpi-label">{t('dup_total_scanned')}</span>
+            <strong><AnimatedCounter end={projects.length} /></strong>
+            <small>Active district projects</small>
+          </div>
 
-                {/* Project B */}
-                <div>
-                  <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 700, color: 'var(--text-tertiary)', marginBottom: 4 }}>{t('dup_project_b')}</div>
-                  <div style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: 4 }}>{dup.projectB.name}</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                    {dup.projectB.constituency} • {dup.projectB.state}<br />
-                    ₹{(dup.projectB.sanctionedAmount / 100000).toFixed(1)}L • {dup.projectB.sector}
-                  </div>
-                </div>
+          <div className="kpi-panel">
+            <div className="kpi-accent critical" />
+            <span className="kpi-label">{t('dup_duplicates_found')}</span>
+            <strong style={{ color: '#C85A32' }}><AnimatedCounter end={duplicates.length} /></strong>
+            <small>Score exceeds 55% similarity</small>
+          </div>
 
-                {/* Actions */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {actions[idx] ? (
-                    <div style={{ padding: '8px 14px', borderRadius: 8, background: actions[idx] === 'duplicate' ? 'rgba(214,48,49,0.1)' : actions[idx] === 'dismiss' ? 'rgba(0,184,148,0.1)' : 'rgba(0,102,255,0.1)', fontSize: '0.75rem', fontWeight: 700, textAlign: 'center' }}>
-                      {actions[idx] === 'duplicate' ? '🚩 Marked' : actions[idx] === 'dismiss' ? '✅ Dismissed' : '🔍 Investigating'}
+          <div className="kpi-panel">
+            <div className="kpi-accent amber" />
+            <span className="kpi-label">{t('dup_similarity_score')}</span>
+            <strong style={{ color: '#D97706' }}>
+              <AnimatedCounter end={avgSimilarity} suffix="%" decimals={1} />
+            </strong>
+            <small>Mean semantic + spatial overlap</small>
+          </div>
+
+          <div className="kpi-panel">
+            <div className="kpi-accent critical" />
+            <span className="kpi-label">{t('dup_cross_constituency')}</span>
+            <strong style={{ color: '#C85A32' }}><AnimatedCounter end={crossConstituency.length} /></strong>
+            <small>Inter-boundary potential conflict</small>
+          </div>
+
+          <div className="kpi-panel">
+            <div className="kpi-accent sage" />
+            <span className="kpi-label">{hi ? 'समीक्षित जोड़े' : 'Audited Pairs'}</span>
+            <strong style={{ color: '#059669' }}>{Object.keys(actions).length}</strong>
+            <small>Adjudicated by authority</small>
+          </div>
+        </motion.div>
+
+        {/* Duplicate Pairs Panel */}
+        <motion.div variants={fadeUp} className="panel" style={{ padding: 24 }}>
+          <div className="panel-head" style={{ marginBottom: 18 }}>
+            <div>
+              <span className="eyebrow">{hi ? 'सत्यापन कतार' : 'COMPARATIVE ADJUDICATION QUEUE'}</span>
+              <h3>{t('dup_pair_title')}</h3>
+            </div>
+            <span style={{ fontSize: 11, color: 'var(--muted)' }}>
+              {duplicates.length} candidate pairs requiring GIS boundary & tender reconciliation
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {duplicates.map((dup, idx) => {
+              const isHigh = dup.combinedScore > 80;
+              const isMed = dup.combinedScore > 65 && dup.combinedScore <= 80;
+              const simColor = isHigh ? '#C85A32' : isMed ? '#D97706' : '#059669';
+
+              return (
+                <div
+                  key={idx}
+                  style={{
+                    background: 'var(--surface)',
+                    borderRadius: 14,
+                    padding: 20,
+                    border: `1px solid ${isHigh ? 'rgba(200, 90, 50, 0.35)' : 'var(--line)'}`,
+                    display: 'grid',
+                    gridTemplateColumns: 'minmax(0, 1.2fr) auto minmax(0, 1.2fr) minmax(140px, auto)',
+                    gap: 18,
+                    alignItems: 'center'
+                  }}
+                >
+                  {/* Project A Card */}
+                  <div style={{ background: '#fff', borderRadius: 10, padding: 14, border: '1px solid var(--line)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>
+                      <span style={{ fontWeight: 800, color: '#059669' }}>{t('dup_project_a').toUpperCase()}</span>
+                      <code>{dup.projectA.id}</code>
                     </div>
-                  ) : (
-                    <>
-                      <button className="btn btn-danger btn-sm" onClick={() => handleAction(idx, 'duplicate')}>{t('dup_mark_duplicate')}</button>
-                      <button className="btn btn-ghost btn-sm" onClick={() => handleAction(idx, 'investigate')}>{t('dup_investigate')}</button>
-                      <button className="btn btn-ghost btn-sm" onClick={() => handleAction(idx, 'dismiss')}>{t('dup_dismiss')}</button>
-                    </>
-                  )}
+                    <b style={{ fontSize: 13, display: 'block', marginBottom: 6 }}>{dup.projectA.name}</b>
+                    <div style={{ fontSize: 11, color: 'var(--muted)' }}>
+                      <MapPin size={11} style={{ display: 'inline', marginRight: 3 }} />
+                      {dup.projectA.constituency} · {dup.projectA.state}
+                      <br />
+                      ₹{((dup.projectA.sanctionedAmount || 0) / 100000).toFixed(1)}L · {dup.projectA.sector}
+                    </div>
+                  </div>
+
+                  {/* Similarity Badge */}
+                  <div style={{ textAlign: 'center', minWidth: 90 }}>
+                    <div style={{
+                      width: 54,
+                      height: 54,
+                      borderRadius: '50%',
+                      background: isHigh ? 'rgba(200, 90, 50, 0.15)' : 'rgba(5, 150, 105, 0.12)',
+                      border: `1.5px solid ${simColor}`,
+                      color: simColor,
+                      display: 'grid',
+                      placeItems: 'center',
+                      fontWeight: 900,
+                      fontSize: 14,
+                      margin: '0 auto 4px'
+                    }}>
+                      {dup.combinedScore}%
+                    </div>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)' }}>
+                      {t('dup_similarity')}
+                    </span>
+                  </div>
+
+                  {/* Project B Card */}
+                  <div style={{ background: '#fff', borderRadius: 10, padding: 14, border: `1px solid ${isHigh ? 'rgba(200, 90, 50, 0.3)' : 'var(--line)'}` }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>
+                      <span style={{ fontWeight: 800, color: simColor }}>{t('dup_project_b').toUpperCase()}</span>
+                      <code>{dup.projectB.id}</code>
+                    </div>
+                    <b style={{ fontSize: 13, display: 'block', marginBottom: 6 }}>{dup.projectB.name}</b>
+                    <div style={{ fontSize: 11, color: 'var(--muted)' }}>
+                      <MapPin size={11} style={{ display: 'inline', marginRight: 3 }} />
+                      {dup.projectB.constituency} · {dup.projectB.state}
+                      <br />
+                      ₹{((dup.projectB.sanctionedAmount || 0) / 100000).toFixed(1)}L · {dup.projectB.sector}
+                    </div>
+                  </div>
+
+                  {/* Adjudication Actions */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {actions[idx] ? (
+                      <div style={{
+                        padding: '10px 14px',
+                        borderRadius: 8,
+                        background: actions[idx] === 'duplicate' ? 'rgba(200, 90, 50, 0.12)' : actions[idx] === 'dismiss' ? 'rgba(5, 150, 105, 0.12)' : '#1E3A2B',
+                        color: actions[idx] === 'duplicate' ? '#C85A32' : actions[idx] === 'dismiss' ? '#059669' : '#34D399',
+                        fontSize: 11,
+                        fontWeight: 800,
+                        textAlign: 'center'
+                      }}>
+                        {actions[idx] === 'duplicate' ? '🚩 Flagged Duplicate' : actions[idx] === 'dismiss' ? '✓ Cleared Different' : '🔍 In Investigation'}
+                      </div>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          className="primary-action"
+                          onClick={() => handleAction(idx, 'duplicate')}
+                          style={{ background: '#C85A32', borderColor: '#C85A32', height: 32, fontSize: 10 }}
+                        >
+                          {t('dup_mark_duplicate')}
+                        </button>
+                        <button
+                          type="button"
+                          className="secondary-action"
+                          onClick={() => handleAction(idx, 'investigate')}
+                          style={{ height: 32, fontSize: 10 }}
+                        >
+                          {t('dup_investigate')}
+                        </button>
+                        <button
+                          type="button"
+                          className="secondary-action"
+                          onClick={() => handleAction(idx, 'dismiss')}
+                          style={{ height: 30, fontSize: 10, opacity: 0.8 }}
+                        >
+                          {t('dup_dismiss')}
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
-              </motion.div>
-            ))}
+              );
+            })}
 
             {duplicates.length === 0 && (
-              <div className="empty-state">
-                <div className="empty-icon">✅</div>
-                <p>{lang === 'hi' ? 'कोई डुप्लिकेट नहीं मिला' : 'No duplicates detected'}</p>
+              <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>
+                <CheckCircle2 size={32} style={{ color: '#059669', marginBottom: 10 }} />
+                <h4>{hi ? 'कोई संभावित दोहराव नहीं मिला' : 'No Suspected Duplicates Found'}</h4>
+                <p style={{ fontSize: 12 }}>All projects conform to unique geographic and tender specifications.</p>
               </div>
             )}
           </div>
         </motion.div>
+
       </motion.div>
     </div>
   );

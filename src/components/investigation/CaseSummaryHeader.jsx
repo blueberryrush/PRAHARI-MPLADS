@@ -25,8 +25,8 @@ export default function CaseSummaryHeader({
   const dueDate = assignment?.dueDate || '2026-09-18';
   const dueStatus = getDueDateStatus(dueDate);
 
-  const formattedSanctioned = (p.sanctionedAmount / 100000).toFixed(1);
-  const formattedSpent = (p.spentAmount / 100000).toFixed(1);
+  const formattedSanctioned = ((p?.sanctionedAmount || 0) / 100000).toFixed(1);
+  const formattedSpent = ((p?.spentAmount || 0) / 100000).toFixed(1);
 
   return (
     <div className="panel compact-case-summary">

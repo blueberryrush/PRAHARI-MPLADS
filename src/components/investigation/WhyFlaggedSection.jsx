@@ -25,9 +25,9 @@ export default function WhyFlaggedSection({
   const p = project;
 
   // Compute specific metrics for calculation details
-  const costDiff = p.spentAmount - p.sanctionedAmount;
-  const costVariancePct = ((costDiff / p.sanctionedAmount) * 100).toFixed(1);
-  const progressGap = (p.financialProgress - p.physicalProgress);
+  const costDiff = (p?.spentAmount || 0) - (p?.sanctionedAmount || 0);
+  const costVariancePct = p?.sanctionedAmount ? ((costDiff / p.sanctionedAmount) * 100).toFixed(1) : '0.0';
+  const progressGap = ((p?.financialProgress || 0) - (p?.physicalProgress || 0));
 
   return (
     <section className="panel why-flagged-section">

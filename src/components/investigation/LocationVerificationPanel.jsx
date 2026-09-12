@@ -11,8 +11,8 @@ export default function LocationVerificationPanel({
   const p = project;
 
   // Expected coordinates
-  const expLat = p.latitude || 25.3176;
-  const expLng = p.longitude || 82.9739;
+  const expLat = Number(p?.latitude) || 25.3176;
+  const expLng = Number(p?.longitude) || 82.9739;
 
   // Observed coordinates from captured evidence or demo drift
   const captured = caseData?.capturedEvidence;
