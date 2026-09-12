@@ -31,17 +31,97 @@ function saveComplaints(list) {
 
 // ─── Build initial case ───────────────────────────────────────────────────────
 function buildInitialCase(id) {
+  const isPrj2 = id?.toUpperCase() === 'PRJ002';
   return {
     id,
-    status: 'Detected',
-    auditHistory: [{
-      action: 'Case Detected',
-      timestamp: new Date().toISOString(),
-      officerName: 'PRAHARI System',
-      role: 'System',
-      note: 'Automated risk signal surfaced by PRAHARI analytics engine via Authorized PFMS Financial Ledger Feed.',
-      hash: Math.random().toString(36).slice(2, 10).toUpperCase(),
-    }],
+    status: isPrj2 ? 'Assigned' : 'Detected',
+    priority: isPrj2 ? 'high' : 'medium',
+    assignedOfficer: isPrj2 ? 'Rajesh Kumar (Field Officer)' : null,
+    assignment: isPrj2 ? {
+      officer: 'Rajesh Kumar',
+      role: 'Field Officer',
+      department: 'District Engineering Vigilance Cell',
+      priority: 'high',
+      dueDate: '2026-09-18',
+      instructions: 'Conduct on-site culvert and bitumen measurement. Reconcile with PRJ001 GIS boundary.'
+    } : null,
+    checklist: {
+      check_pfms: true,
+      check_mb: true,
+      check_coords: false,
+      check_duplicate: false,
+      check_agency: false,
+      check_board: false,
+      check_citizen: false,
+    },
+    duplicateDecision: null, // 'not_duplicate' | 'potential_duplicate' | 'need_evidence'
+    duplicateCandidateId: isPrj2 ? 'PRJ001' : null,
+    supervisorReview: null,
+    evidenceItems: [
+      {
+        id: 'EV-01',
+        title: 'Approved DPR & Cost Estimates 2024.pdf',
+        category: 'documents',
+        uploadedAt: '2024-02-15 11:30',
+        uploadedBy: 'District Planning Office',
+        status: 'verified',
+        size: '2.4 MB'
+      },
+      {
+        id: 'EV-02',
+        title: 'PFMS Sanction Release Tranche 1 & 2.pdf',
+        category: 'payments',
+        uploadedAt: '2024-03-22 14:15',
+        uploadedBy: 'Treasury Officer, Varanasi',
+        status: 'verified',
+        size: '1.1 MB'
+      },
+      {
+        id: 'EV-03',
+        title: 'Initial Geotagged Site Photo - Chainage 0+000.jpg',
+        category: 'field_photos',
+        uploadedAt: '2024-04-10 10:05',
+        uploadedBy: 'Agency AG003 Field Staff',
+        status: 'needs_review',
+        size: '3.8 MB'
+      },
+      {
+        id: 'EV-04',
+        title: 'GIS Survey Boundary Track & Perimeter.kml',
+        category: 'gps',
+        uploadedAt: '2024-04-12 16:40',
+        uploadedBy: 'GIS Engineering Cell',
+        status: 'verified',
+        size: '420 KB'
+      },
+      {
+        id: 'EV-05',
+        title: 'Resident Complaint regarding road width and culvert work.pdf',
+        category: 'citizen',
+        uploadedAt: '2024-08-14 09:20',
+        uploadedBy: 'Citizen Grievance Portal',
+        status: 'unverified',
+        size: '640 KB'
+      },
+    ],
+    auditHistory: [
+      {
+        action: 'Case Detected',
+        timestamp: new Date(Date.now() - 14 * 86400000).toISOString(),
+        officerName: 'PRAHARI System',
+        role: 'System',
+        note: 'Automated risk signal surfaced by PRAHARI analytics engine via Authorized PFMS Financial Ledger Feed.',
+        hash: '9A7B1C4E',
+      },
+      ...(isPrj2 ? [{
+        action: 'Investigation Assigned',
+        timestamp: new Date(Date.now() - 5 * 86400000).toISOString(),
+        officerName: 'District Authority',
+        role: 'district_authority',
+        note: 'Assigned to Rajesh Kumar (Field Officer) with High Priority. Deadline: 18 Sep 2026.',
+        hash: '3F8E2D10',
+      }] : []),
+    ],
     feedbackFidelity: null,
     capturedEvidence: null,
     attachedNodes: [],
@@ -88,6 +168,170 @@ export function CaseProvider({ children }) {
       return next;
     });
   }, []);
+
+  // ── Assign Case ───────────────────────────────────────────────────────────
+  const assignCase = useCallback((id, assignmentData, officerName = 'District Authority', role = 'district_authority') => {
+    setCases(prev => {
+      const existing = prev[id] || buildInitialCase(id);
+      const updated = {
+        ...existing,
+        status: 'Assigned',
+        assignedOfficer: `${assignmentData.officer} (${assignmentData.role || 'Investigator'})`,
+        assignment: { ...assignmentData },
+        auditHistory: [
+          ...existing.auditHistory,
+          {
+            action: 'Case Assigned',
+            timestamp: new Date().toISOString(),
+            officerName,
+            role,
+            note: `Assigned to ${assignmentData.officer} (${assignmentData.department}). Priority: ${assignmentData.priority}. Due: ${assignmentData.dueDate}.`,
+            hash: Math.random().toString(36).slice(2, 10).toUpperCase(),
+          },
+        ],
+      };
+      const next = { ...prev, [id]: updated };
+      saveCases(next);
+      return next;
+    });
+    showToast(`Case ${id} successfully assigned to ${assignmentData.officer}.`);
+  }, [showToast]);
+
+  // ── Update Checklist Item ─────────────────────────────────────────────────
+  const updateChecklist = useCallback((id, checkKey, isChecked, officerName = 'Investigator') => {
+    setCases(prev => {
+      const existing = prev[id] || buildInitialCase(id);
+      const updatedChecklist = {
+        ...(existing.checklist || {}),
+        [checkKey]: isChecked,
+      };
+      const updated = {
+        ...existing,
+        checklist: updatedChecklist,
+        auditHistory: [
+          ...existing.auditHistory,
+          {
+            action: `Checklist Updated`,
+            timestamp: new Date().toISOString(),
+            officerName,
+            role: 'investigator',
+            note: `Verification check "${checkKey}" marked as ${isChecked ? 'completed' : 'pending'}.`,
+            hash: Math.random().toString(36).slice(2, 10).toUpperCase(),
+          },
+        ],
+      };
+      const next = { ...prev, [id]: updated };
+      saveCases(next);
+      return next;
+    });
+  }, []);
+
+  // ── Record Duplicate Decision ─────────────────────────────────────────────
+  const recordDuplicateDecision = useCallback((id, candidateId, decision, notes = '', officerName = 'Investigator') => {
+    const decisionLabels = {
+      not_duplicate: 'Not a Duplicate (Independent Work)',
+      potential_duplicate: 'Potential Duplicate (Demarcation Audit Required)',
+      need_evidence: 'Need More Evidence (GIS Survey Requested)',
+    };
+    const label = decisionLabels[decision] || decision;
+    setCases(prev => {
+      const existing = prev[id] || buildInitialCase(id);
+      const updated = {
+        ...existing,
+        duplicateDecision: decision,
+        duplicateDecisionNotes: notes,
+        auditHistory: [
+          ...existing.auditHistory,
+          {
+            action: `Duplicate Adjudication: ${label}`,
+            timestamp: new Date().toISOString(),
+            officerName,
+            role: 'investigator',
+            note: `Comparison with ${candidateId} adjudicated as: ${label}. Notes: ${notes || 'No extra remarks'}.`,
+            hash: Math.random().toString(36).slice(2, 10).toUpperCase(),
+          },
+        ],
+      };
+      const next = { ...prev, [id]: updated };
+      saveCases(next);
+      return next;
+    });
+    showToast(`Duplicate review recorded: ${label}. Audit log updated.`);
+  }, [showToast]);
+
+  // ── Add Evidence Item ─────────────────────────────────────────────────────
+  const addEvidenceItem = useCallback((id, item, officerName = 'Investigator') => {
+    const newItem = {
+      id: `EV-${Date.now().toString().slice(-4)}`,
+      uploadedAt: new Date().toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' }),
+      uploadedBy: officerName,
+      status: 'verified',
+      size: '1.2 MB',
+      ...item,
+    };
+    setCases(prev => {
+      const existing = prev[id] || buildInitialCase(id);
+      const updatedEvidence = [newItem, ...(existing.evidenceItems || [])];
+      const updated = {
+        ...existing,
+        evidenceItems: updatedEvidence,
+        auditHistory: [
+          ...existing.auditHistory,
+          {
+            action: 'Evidence Uploaded to Locker',
+            timestamp: new Date().toISOString(),
+            officerName,
+            role: 'investigator',
+            note: `New evidence "${newItem.title}" added to category [${newItem.category}].`,
+            hash: Math.random().toString(36).slice(2, 10).toUpperCase(),
+          },
+        ],
+      };
+      const next = { ...prev, [id]: updated };
+      saveCases(next);
+      return next;
+    });
+    showToast(`Evidence "${newItem.title}" added to Evidence Locker.`);
+  }, [showToast]);
+
+  // ── Submit Supervisor Review ──────────────────────────────────────────────
+  const submitSupervisorReview = useCallback((id, reviewPayload, officerName = 'District Magistrate', role = 'district_authority') => {
+    const statusMap = {
+      approve_close: 'Resolved',
+      request_evidence: 'Under Review',
+      return_investigation: 'Field Verification Dispatched',
+      escalate: 'Escalated to State Vigilance',
+    };
+    const newStatus = statusMap[reviewPayload.action] || 'Under Review';
+    setCases(prev => {
+      const existing = prev[id] || buildInitialCase(id);
+      const updated = {
+        ...existing,
+        status: newStatus,
+        supervisorReview: {
+          ...reviewPayload,
+          reviewedAt: new Date().toISOString(),
+          reviewer: officerName,
+          role,
+        },
+        auditHistory: [
+          ...existing.auditHistory,
+          {
+            action: `Supervisor Review: ${reviewPayload.actionText || reviewPayload.action}`,
+            timestamp: new Date().toISOString(),
+            officerName,
+            role,
+            note: reviewPayload.notes || `Disposition: ${newStatus}`,
+            hash: Math.random().toString(36).slice(2, 10).toUpperCase(),
+          },
+        ],
+      };
+      const next = { ...prev, [id]: updated };
+      saveCases(next);
+      return next;
+    });
+    showToast(`Supervisor review recorded. Case status updated to: ${newStatus}.`);
+  }, [showToast]);
 
   // ── Attach an evidence node to docket ────────────────────────────────────
   const attachNode = useCallback((id, nodeId, nodeLabel, officerName = 'Investigator', role = 'district_authority') => {
@@ -207,6 +451,11 @@ export function CaseProvider({ children }) {
     <CaseContext.Provider value={{
       getCase,
       advanceStatus,
+      assignCase,
+      updateChecklist,
+      recordDuplicateDecision,
+      addEvidenceItem,
+      submitSupervisorReview,
       recordFeedback,
       attachEvidence,
       attachNode,

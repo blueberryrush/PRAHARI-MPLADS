@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { projects } from '../../data/mockData';
 import { detectAnomalies } from '../../data/aiEngine';
@@ -15,9 +16,12 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 export default function FinancialVerification() {
   const { user } = useAuth();
+  const { t } = useLanguage();
+  const navigate = useNavigate();
 
   const [filter, setFilter] = useState('all');
   const [selectedId, setSelectedId] = useState(null);
@@ -122,20 +126,19 @@ export default function FinancialVerification() {
 
         <div>
           <div className="eyebrow">
-            FINANCIAL INTELLIGENCE · {jurisdictionLabel}
+            {t('nav_financial').toUpperCase()} · {jurisdictionLabel}
           </div>
 
-          <h1>Financial Review</h1>
+          <h1>{t('fin_title')}</h1>
 
           <p>
-            Detect unusual expenditure, financial-physical
-            mismatches and projects requiring review.
+            {t('fin_subtitle')}
           </p>
         </div>
 
         <div className="scope-lock">
           <ShieldAlert size={15} />
-          <span>Scoped to your authority</span>
+          <span>{t('dash_scoped')}</span>
         </div>
 
       </div>
@@ -153,7 +156,7 @@ export default function FinancialVerification() {
           </div>
 
           <div>
-            <span>Total sanctioned</span>
+            <span>{t('risk_sanctioned')}</span>
 
             <strong>
               ₹
@@ -173,7 +176,7 @@ export default function FinancialVerification() {
           </div>
 
           <div>
-            <span>Total reported spend</span>
+            <span>{t('risk_reported_spend')}</span>
 
             <strong>
               ₹
@@ -193,7 +196,7 @@ export default function FinancialVerification() {
           </div>
 
           <div>
-            <span>Projects requiring review</span>
+            <span>{t('dash_priority_cases')}</span>
 
             <strong>{flagged.length}</strong>
           </div>
@@ -207,7 +210,7 @@ export default function FinancialVerification() {
           </div>
 
           <div>
-            <span>Financial / physical mismatch</span>
+            <span>{t('fin_deviation')}</span>
 
             <strong>
               {financialMismatch.length}
@@ -231,18 +234,15 @@ export default function FinancialVerification() {
         <div>
 
           <span className="eyebrow">
-            AI FINANCIAL SIGNAL
+            {t('signal_financial_name')}
           </span>
 
           <h3>
-            {flagged.length} projects show patterns
-            requiring human review
+            {flagged.length} {t('fin_flagged_title')}
           </h3>
 
           <p>
-            Signals combine expenditure deviation,
-            financial-vs-physical progress and statistical
-            irregularity. A signal is not a fraud finding.
+            {t('signal_financial_finding')} {t('disclaimer_risk_not_fraud')}
           </p>
 
         </div>
@@ -251,7 +251,7 @@ export default function FinancialVerification() {
           onClick={() => setFilter('flagged')}
           className="financial-review-button"
         >
-          Review flagged
+          {t('btn_review_evidence')}
           <ArrowRight size={15} />
         </button>
 
@@ -264,7 +264,7 @@ export default function FinancialVerification() {
       <div className="grid-2 financial-charts">
 
         <ScatterChart
-          title="Expenditure vs sanctioned amount"
+          title={t('fin_expenditure_chart')}
           xLabel="Sanctioned amount (₹ lakh)"
           yLabel="Reported spend (₹ lakh)"
           datasets={[
@@ -288,7 +288,7 @@ export default function FinancialVerification() {
         />
 
         <BarChart
-          title="Financial vs physical progress"
+          title={t('fin_progress_chart')}
           labels={financialMismatch
             .slice(0, 8)
             .map((p) => p.id)}
@@ -318,10 +318,10 @@ export default function FinancialVerification() {
 
         <div>
           <span className="eyebrow">
-            REVIEW QUEUE
+            {t('inv_my_queue')}
           </span>
 
-          <h3>Financial cases</h3>
+          <h3>{t('nav_financial')}</h3>
         </div>
 
         <div className="financial-filters">
@@ -330,7 +330,7 @@ export default function FinancialVerification() {
             className={filter === 'all' ? 'active' : ''}
             onClick={() => setFilter('all')}
           >
-            All
+            {t('inv_filter_all')}
           </button>
 
           <button
@@ -339,7 +339,7 @@ export default function FinancialVerification() {
             }
             onClick={() => setFilter('flagged')}
           >
-            AI flagged
+            {t('fin_flagged')}
             <span>{flagged.length}</span>
           </button>
 
@@ -349,7 +349,7 @@ export default function FinancialVerification() {
             }
             onClick={() => setFilter('mismatch')}
           >
-            Progress mismatch
+            {t('fin_deviation')}
             <span>{financialMismatch.length}</span>
           </button>
 
@@ -369,12 +369,12 @@ export default function FinancialVerification() {
 
             <thead>
               <tr>
-                <th>Project</th>
-                <th>Sanctioned</th>
-                <th>Reported spend</th>
-                <th>Financial</th>
-                <th>Physical</th>
-                <th>Signal</th>
+                <th>{t('fin_project')}</th>
+                <th>{t('risk_sanctioned')}</th>
+                <th>{t('risk_reported_spend')}</th>
+                <th>{t('tab_financial')}</th>
+                <th>{t('fin_physical_progress')}</th>
+                <th>{t('dash_signal_eyebrow')}</th>
                 <th></th>
               </tr>
             </thead>
@@ -464,11 +464,11 @@ export default function FinancialVerification() {
                         />
                       ) : mismatch ? (
                         <span className="financial-signal mismatch">
-                          Mismatch
+                          {t('fin_deviation')}
                         </span>
                       ) : (
                         <span className="financial-signal normal">
-                          Normal
+                          {t('badge_low_risk')}
                         </span>
                       )}
 
@@ -482,7 +482,7 @@ export default function FinancialVerification() {
                           setSelectedId(p.id)
                         }
                       >
-                        Review
+                        {t('btn_review_evidence')}
                         <ArrowRight size={13} />
                       </button>
 
@@ -517,7 +517,7 @@ export default function FinancialVerification() {
             <div>
 
               <span className="eyebrow">
-                SELECTED FINANCIAL CASE
+                {t('fin_batch_eyebrow')}
               </span>
 
               <h3>
@@ -536,7 +536,7 @@ export default function FinancialVerification() {
               onClick={() => setSelectedId(null)}
               className="financial-close"
             >
-              Close
+              {t('btn_close')}
             </button>
 
           </div>
@@ -544,7 +544,7 @@ export default function FinancialVerification() {
           <div className="financial-case-grid">
 
             <div>
-              <span>Sanctioned</span>
+              <span>{t('risk_sanctioned')}</span>
               <strong>
                 ₹
                 {(
@@ -556,7 +556,7 @@ export default function FinancialVerification() {
             </div>
 
             <div>
-              <span>Reported spend</span>
+              <span>{t('risk_reported_spend')}</span>
               <strong>
                 ₹
                 {(
@@ -568,14 +568,14 @@ export default function FinancialVerification() {
             </div>
 
             <div>
-              <span>Financial progress</span>
+              <span>{t('tab_financial')}</span>
               <strong>
                 {selectedProject.financialProgress}%
               </strong>
             </div>
 
             <div>
-              <span>Physical progress</span>
+              <span>{t('risk_physical_progress')}</span>
               <strong>
                 {selectedProject.physicalProgress}%
               </strong>
@@ -589,15 +589,10 @@ export default function FinancialVerification() {
 
             <div>
 
-              <b>Why PRAHARI flagged this</b>
+              <b>{t('risk_signal_breakdown_title')}</b>
 
               <p>
-                The project shows an expenditure pattern
-                that differs from the expected relationship
-                between sanctioned amount, reported spend
-                and physical progress. This should be
-                validated against source records and field
-                evidence.
+                {t('signal_financial_finding')} {t('disclaimer_full')}
               </p>
 
             </div>
@@ -608,16 +603,15 @@ export default function FinancialVerification() {
 
             <span>
               <CheckCircle2 size={14} />
-              Human verification required
+              {t('risk_requires_verif')}
             </span>
 
             <button
               onClick={() => {
-                window.location.href =
-                  `/official/risk/${selectedProject.id}`;
+                navigate(`/official/risk/${selectedProject.id}`);
               }}
             >
-              Open risk profile
+              {t('nav_risk')}
               <ArrowRight size={14} />
             </button>
 

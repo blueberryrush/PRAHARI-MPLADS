@@ -12,6 +12,7 @@ export const sectors = [
 ];
 
 export const constituencies = [
+  { name: 'Ghaziabad', state: 'Uttar Pradesh', district: 'Ghaziabad' },
   { name: 'Varanasi', state: 'Uttar Pradesh', district: 'Varanasi' },
   { name: 'Lucknow', state: 'Uttar Pradesh', district: 'Lucknow' },
   { name: 'Mumbai North', state: 'Maharashtra', district: 'Mumbai' },
@@ -25,6 +26,22 @@ export const constituencies = [
   { name: 'Kolkata North', state: 'West Bengal', district: 'Kolkata' },
   { name: 'Bhubaneswar', state: 'Odisha', district: 'Khordha' },
 ];
+
+export const constituencyCoords = {
+  'Ghaziabad': { lat: 28.6692, lng: 77.4538 },
+  'Varanasi': { lat: 25.3176, lng: 82.9739 },
+  'Lucknow': { lat: 26.8467, lng: 80.9462 },
+  'Mumbai North': { lat: 19.0760, lng: 72.8777 },
+  'Pune': { lat: 18.5204, lng: 73.8567 },
+  'Patna Sahib': { lat: 25.5941, lng: 85.1376 },
+  'Bhopal': { lat: 23.2599, lng: 77.4126 },
+  'Jaipur': { lat: 26.9124, lng: 75.7873 },
+  'Chennai South': { lat: 13.0827, lng: 80.2707 },
+  'Bangalore South': { lat: 12.9716, lng: 77.5946 },
+  'Ahmedabad East': { lat: 23.0225, lng: 72.5714 },
+  'Kolkata North': { lat: 22.5726, lng: 88.3639 },
+  'Bhubaneswar': { lat: 20.2961, lng: 85.8245 },
+};
 
 export const agencies = [
   { id: 'AG001', name: 'National Highways Construction Corp', type: 'Central PSU', riskScore: 18, totalProjects: 34, onTimeRate: 91, withinBudgetRate: 88, qualityScore: 92, redFlags: 0, status: 'low', trend: [85,87,89,90,91,92], history: ['Excellent track record', 'ISO certified', 'No complaints'] },
@@ -44,7 +61,7 @@ export const agencies = [
   { id: 'AG015', name: 'District Engineering Cell - Rajasthan', type: 'District Agency', riskScore: 44, totalProjects: 16, onTimeRate: 69, withinBudgetRate: 66, qualityScore: 70, redFlags: 2, status: 'medium', trend: [73,72,71,70,69,68], history: ['Two budget overruns', 'Staffing issues reported'] },
 ];
 
-export const projects = [
+const baseProjects = [
   // Roads
   { id: 'PRJ001', name: 'Village Road Construction - Varanasi Block A', sector: 'Roads & Bridges', constituency: 'Varanasi', state: 'Uttar Pradesh', district: 'Varanasi', agency: 'AG002', sanctionedAmount: 1200000, spentAmount: 1180000, expectedCost: 1200000, sanctionDate: '2024-01-15', startDate: '2024-02-01', expectedCompletion: '2024-08-01', actualCompletion: '2024-07-28', status: 'completed', physicalProgress: 100, financialProgress: 98, isAnomaly: false, description: 'Construction of 2km village connecting road with proper drainage' },
   { id: 'PRJ002', name: 'Village Road Construction - Varanasi Block B', sector: 'Roads & Bridges', constituency: 'Varanasi', state: 'Uttar Pradesh', district: 'Varanasi', agency: 'AG003', sanctionedAmount: 1200000, spentAmount: 2200000, expectedCost: 1200000, sanctionDate: '2024-01-20', startDate: '2024-03-01', expectedCompletion: '2024-09-01', actualCompletion: null, status: 'delayed', physicalProgress: 55, financialProgress: 183, isAnomaly: true, description: 'Construction of 2km village connecting road - SIMILAR CONDITIONS as PRJ001 but massive overrun' },
@@ -130,6 +147,121 @@ export const projects = [
   { id: 'PRJ048', name: 'Street Light Installation - Varanasi', sector: 'Electrification', constituency: 'Varanasi', state: 'Uttar Pradesh', district: 'Varanasi', agency: 'AG014', sanctionedAmount: 1000000, spentAmount: 950000, expectedCost: 1000000, sanctionDate: '2024-06-01', startDate: '2024-07-01', expectedCompletion: '2024-11-01', actualCompletion: null, status: 'in_progress', physicalProgress: 45, financialProgress: 95, isAnomaly: false, description: '40 LED street lights on main market road' },
   { id: 'PRJ049', name: 'Boundary Wall - Lucknow School', sector: 'Education', constituency: 'Lucknow', state: 'Uttar Pradesh', district: 'Lucknow', agency: 'AG002', sanctionedAmount: 400000, spentAmount: 380000, expectedCost: 400000, sanctionDate: '2024-07-01', startDate: '2024-08-01', expectedCompletion: '2024-11-01', actualCompletion: null, status: 'in_progress', physicalProgress: 35, financialProgress: 95, isAnomaly: false, description: 'Boundary wall for government primary school' },
   { id: 'PRJ050', name: 'Hand Pump Repair - MP Villages', sector: 'Drinking Water', constituency: 'Bhopal', state: 'Madhya Pradesh', district: 'Bhopal', agency: 'AG005', sanctionedAmount: 300000, spentAmount: 280000, expectedCost: 300000, sanctionDate: '2024-04-01', startDate: '2024-05-01', expectedCompletion: '2024-07-01', actualCompletion: '2024-06-28', status: 'completed', physicalProgress: 100, financialProgress: 93, isAnomaly: false, description: 'Repair and maintenance of 15 hand pumps in rural villages' },
+];
+
+export const ghaziabadDemoProjects = [
+  {
+    id: 'PRJ_GZB_01',
+    name: 'Village Road Improvement - Ghaziabad',
+    sector: 'Roads & Bridges',
+    constituency: 'Ghaziabad',
+    state: 'Uttar Pradesh',
+    district: 'Ghaziabad',
+    agency: 'AG002',
+    sanctionedAmount: 2200000,
+    spentAmount: 2200000,
+    expectedCost: 2200000,
+    sanctionDate: '2024-02-10',
+    startDate: '2024-03-01',
+    expectedCompletion: '2024-11-30',
+    actualCompletion: null,
+    status: 'in_progress',
+    physicalProgress: 75,
+    financialProgress: 88,
+    estimatedSiteProgress: 55,
+    isAnomaly: true,
+    latitude: 28.6842,
+    longitude: 77.4668,
+    description: '2km village road improvement with bituminous surface and culvert reconstruction. AI visual estimation indicates potential progress mismatch (75% reported vs 55% site estimate).'
+  },
+  {
+    id: 'PRJ_GZB_02',
+    name: 'Community Hall Construction - Raj Nagar',
+    sector: 'Community Hall',
+    constituency: 'Ghaziabad',
+    state: 'Uttar Pradesh',
+    district: 'Ghaziabad',
+    agency: 'AG002',
+    sanctionedAmount: 2500000,
+    spentAmount: 2100000,
+    expectedCost: 2500000,
+    sanctionDate: '2024-01-15',
+    startDate: '2024-02-15',
+    expectedCompletion: '2024-12-15',
+    actualCompletion: null,
+    status: 'in_progress',
+    physicalProgress: 60,
+    financialProgress: 84,
+    estimatedSiteProgress: 60,
+    isAnomaly: false,
+    latitude: 28.6932,
+    longitude: 77.4758,
+    description: 'Multi-purpose community hall with solar lighting, rainwater harvesting, and seating for 250 citizens.'
+  },
+  {
+    id: 'PRJ_GZB_03',
+    name: 'Drainage Improvement - Mohan Nagar',
+    sector: 'Sanitation',
+    constituency: 'Ghaziabad',
+    state: 'Uttar Pradesh',
+    district: 'Ghaziabad',
+    agency: 'AG013',
+    sanctionedAmount: 1800000,
+    spentAmount: 2300000,
+    expectedCost: 1800000,
+    sanctionDate: '2023-11-20',
+    startDate: '2024-01-10',
+    expectedCompletion: '2024-08-30',
+    actualCompletion: null,
+    status: 'delayed',
+    physicalProgress: 45,
+    financialProgress: 128,
+    estimatedSiteProgress: 40,
+    isAnomaly: true,
+    latitude: 28.6312,
+    longitude: 77.4228,
+    description: 'Underground stormwater covered drainage to prevent monsoon waterlogging along transit junction.'
+  },
+  {
+    id: 'PRJ_GZB_04',
+    name: 'Government School Infrastructure - Kavi Nagar',
+    sector: 'Education',
+    constituency: 'Ghaziabad',
+    state: 'Uttar Pradesh',
+    district: 'Ghaziabad',
+    agency: 'AG001',
+    sanctionedAmount: 1500000,
+    spentAmount: 1450000,
+    expectedCost: 1500000,
+    sanctionDate: '2023-12-05',
+    startDate: '2024-01-05',
+    expectedCompletion: '2024-07-30',
+    actualCompletion: '2024-07-25',
+    status: 'completed',
+    physicalProgress: 100,
+    financialProgress: 97,
+    estimatedSiteProgress: 100,
+    isAnomaly: false,
+    latitude: 28.7242,
+    longitude: 77.5038,
+    description: 'Smart classroom wing with 4 additional rooms, composite science lab, and sanitation facilities.'
+  },
+];
+
+export const projects = [
+  ...ghaziabadDemoProjects,
+  ...baseProjects.map((p, idx) => {
+    if (p.latitude != null && p.longitude != null) return p;
+    const base = constituencyCoords[p.constituency] || { lat: 25.3176, lng: 82.9739 };
+    const latOffset = ((idx % 7) - 3) * 0.015;
+    const lngOffset = (((idx * 3) % 7) - 3) * 0.015;
+    return {
+      ...p,
+      latitude: Number((base.lat + latOffset).toFixed(4)),
+      longitude: Number((base.lng + lngOffset).toFixed(4)),
+      estimatedSiteProgress: p.estimatedSiteProgress ?? (p.isAnomaly ? Math.max(20, (p.physicalProgress || 70) - 20) : p.physicalProgress),
+    };
+  }),
 ];
 
 // Fund utilization data by state (in Crores)

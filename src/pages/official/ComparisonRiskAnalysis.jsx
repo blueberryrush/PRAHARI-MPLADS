@@ -76,10 +76,10 @@ export default function ComparisonRiskAnalysis() {
                   <div className={`comparison-card ${!manualComparison.isRedFlag ? 'green' : ''}`}>
                     <h4 style={{ marginBottom: 12, fontSize: '0.95rem' }}>{manualComparison.projectA.name}</h4>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                      <div><span style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)' }}>{t('comp_actual_cost')}</span><div style={{ fontWeight: 700 }}>₹{(manualComparison.projectA.spentAmount / 100000).toFixed(1)}L</div></div>
-                      <div><span style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)' }}>{lang === 'hi' ? 'अवधि' : 'Duration'}</span><div style={{ fontWeight: 700 }}>{manualComparison.timeAMonths} {t('common_months')}</div></div>
-                      <div><span style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)' }}>{t('common_sector')}</span><div style={{ fontWeight: 500 }}>{manualComparison.projectA.sector}</div></div>
-                      <div><span style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)' }}>{t('fin_status')}</span><div style={{ fontWeight: 500 }}>{manualComparison.projectA.status}</div></div>
+                      <div><span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-tertiary)' }}>{t('comp_actual_cost')}</span><div style={{ fontWeight: 700 }}>₹{(manualComparison.projectA.spentAmount / 100000).toFixed(1)}L</div></div>
+                      <div><span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-tertiary)' }}>{lang === 'hi' ? 'अवधि' : 'Duration'}</span><div style={{ fontWeight: 700 }}>{manualComparison.timeAMonths} {t('common_months')}</div></div>
+                      <div><span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-tertiary)' }}>{t('common_sector')}</span><div style={{ fontWeight: 500 }}>{manualComparison.projectA.sector}</div></div>
+                      <div><span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-tertiary)' }}>{t('fin_status')}</span><div style={{ fontWeight: 500 }}>{manualComparison.projectA.status}</div></div>
                     </div>
                   </div>
 
@@ -88,10 +88,10 @@ export default function ComparisonRiskAnalysis() {
                   <div className={`comparison-card ${manualComparison.isRedFlag ? 'red-flagged' : 'green'}`}>
                     <h4 style={{ marginBottom: 12, fontSize: '0.95rem' }}>{manualComparison.projectB.name}</h4>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                      <div><span style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)' }}>{t('comp_actual_cost')}</span><div style={{ fontWeight: 700, color: manualComparison.costRedFlag ? '#D63031' : 'inherit' }}>₹{(manualComparison.projectB.spentAmount / 100000).toFixed(1)}L</div></div>
-                      <div><span style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)' }}>{lang === 'hi' ? 'अवधि' : 'Duration'}</span><div style={{ fontWeight: 700, color: manualComparison.timeRedFlag ? '#D63031' : 'inherit' }}>{manualComparison.timeBMonths} {t('common_months')}</div></div>
-                      <div><span style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)' }}>{t('common_sector')}</span><div style={{ fontWeight: 500 }}>{manualComparison.projectB.sector}</div></div>
-                      <div><span style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)' }}>{t('fin_status')}</span><div style={{ fontWeight: 500 }}>{manualComparison.projectB.status}</div></div>
+                      <div><span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-tertiary)' }}>{t('comp_actual_cost')}</span><div style={{ fontWeight: 700, color: manualComparison.costRedFlag ? '#D63031' : 'inherit' }}>₹{(manualComparison.projectB.spentAmount / 100000).toFixed(1)}L</div></div>
+                      <div><span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-tertiary)' }}>{lang === 'hi' ? 'अवधि' : 'Duration'}</span><div style={{ fontWeight: 700, color: manualComparison.timeRedFlag ? '#D63031' : 'inherit' }}>{manualComparison.timeBMonths} {t('common_months')}</div></div>
+                      <div><span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-tertiary)' }}>{t('common_sector')}</span><div style={{ fontWeight: 500 }}>{manualComparison.projectB.sector}</div></div>
+                      <div><span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-tertiary)' }}>{t('fin_status')}</span><div style={{ fontWeight: 500 }}>{manualComparison.projectB.status}</div></div>
                     </div>
                   </div>
                 </div>
@@ -147,15 +147,15 @@ export default function ComparisonRiskAnalysis() {
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 12, alignItems: 'center' }}>
                   <div style={{ padding: 10, background: 'rgba(0,184,148,0.05)', borderRadius: 8, border: '1px solid rgba(0,184,148,0.15)' }}>
-                    <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-tertiary)' }}>✅ {scenario.projectA.id}</div>
-                    <div style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: 2 }}>{scenario.projectA.name.substring(0, 35)}</div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>₹{(scenario.projectA.spentAmount / 100000).toFixed(1)}L • {scenario.timeAMonths}m</div>
+                    <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-tertiary)' }}>✅ {scenario.projectA.id}</div>
+                    <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: 2 }}>{scenario.projectA.name.substring(0, 35)}</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>₹{(scenario.projectA.spentAmount / 100000).toFixed(1)}L • {scenario.timeAMonths}m</div>
                   </div>
                   <div style={{ fontFamily: 'var(--font-heading)', fontWeight: 800, color: 'var(--primary)' }}>VS</div>
                   <div style={{ padding: 10, background: 'rgba(214,48,49,0.05)', borderRadius: 8, border: '1px solid rgba(214,48,49,0.15)' }}>
-                    <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#D63031' }}>🚩 {scenario.projectB.id}</div>
-                    <div style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: 2 }}>{scenario.projectB.name.substring(0, 35)}</div>
-                    <div style={{ fontSize: '0.75rem', color: '#D63031', fontWeight: 600 }}>₹{(scenario.projectB.spentAmount / 100000).toFixed(1)}L • {scenario.timeBMonths}m</div>
+                    <div style={{ fontSize: '12px', fontWeight: 600, color: '#D63031' }}>🚩 {scenario.projectB.id}</div>
+                    <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: 2 }}>{scenario.projectB.name.substring(0, 35)}</div>
+                    <div style={{ fontSize: '12px', color: '#D63031', fontWeight: 600 }}>₹{(scenario.projectB.spentAmount / 100000).toFixed(1)}L • {scenario.timeBMonths}m</div>
                   </div>
                 </div>
                 {scenario.reasons.length > 0 && (

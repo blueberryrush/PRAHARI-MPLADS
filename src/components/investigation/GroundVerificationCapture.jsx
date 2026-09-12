@@ -70,7 +70,7 @@ function AIAuthenticityCard({ result, override, onOverride, t }) {
       <div className="ai-verdict" style={{ borderColor: color }}>
         <Icon size={18} style={{ color }} />
         <div>
-          <span style={{ fontSize: 11, color: '#78716c', textTransform: 'uppercase' }}>
+          <span style={{ fontSize: 12, fontWeight: 500, color: '#a8a29e', textTransform: 'uppercase' }}>
             {t('gvc_verdict')}
           </span>
           <b style={{ color }}>

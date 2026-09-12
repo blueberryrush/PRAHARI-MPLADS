@@ -85,7 +85,7 @@ export default function ProjectExplorer() {
                 <tr key={p.id}>
                   <td style={{ fontFamily: 'var(--font-heading)', fontWeight: 600, color: 'var(--primary)' }}>{p.id}</td>
                   <td style={{ maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>{p.name}</td>
-                  <td><span className="badge badge-info" style={{ fontSize: 10 }}>{p.sector}</span></td>
+                  <td><span className="badge badge-info" style={{ fontSize: '12px', fontWeight: 500 }}>{p.sector}</span></td>
                   <td>{p.constituency}</td>
                   <td>₹{(p.sanctionedAmount / 100000).toFixed(1)}L</td>
                   <td style={{ color: p.spentAmount > p.sanctionedAmount * 1.2 ? 'var(--coral)' : 'inherit', fontWeight: p.spentAmount > p.sanctionedAmount * 1.2 ? 700 : 400 }}>₹{(p.spentAmount / 100000).toFixed(1)}L</td>
@@ -94,7 +94,7 @@ export default function ProjectExplorer() {
                       <div className="progress-bar" style={{ width: 60 }}>
                         <div className={`progress-fill ${p.physicalProgress === 100 ? 'green' : p.physicalProgress > 60 ? 'blue' : p.status === 'delayed' ? 'red' : 'yellow'}`} style={{ width: `${p.physicalProgress}%` }}></div>
                       </div>
-                      <span style={{ fontSize: 11, fontWeight: 600 }}>{p.physicalProgress}%</span>
+                      <span style={{ fontSize: '12px', fontWeight: 600 }}>{p.physicalProgress}%</span>
                     </div>
                   </td>
                   <td><StatusBadge status={p.status} /></td>

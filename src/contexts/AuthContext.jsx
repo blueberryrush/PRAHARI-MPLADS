@@ -8,11 +8,13 @@ const demoUsers = {
   state_nodal: { name: 'Amit Singh', email: 'state@demo.com', role: 'state_nodal', state: 'Uttar Pradesh' },
   ministry: { name: 'Sunita Verma', email: 'ministry@demo.com', role: 'ministry' },
   mp: { name: 'Hon. Sh. Vikram Patel', email: 'mp@demo.com', role: 'mp', constituency: 'Varanasi', state: 'Uttar Pradesh' },
+  investigator: { name: 'Vikram Aditya', email: 'investigator@demo.com', role: 'investigator', constituency: 'Varanasi', state: 'Uttar Pradesh', district: 'Varanasi' },
 };
 
 const roleLabels = {
   citizen: 'Citizen',
   district_authority: 'District Authority',
+  investigator: 'Investigator / Field Officer',
   state_nodal: 'State Nodal Authority',
   ministry: 'Ministry Official',
   mp: 'Member of Parliament',

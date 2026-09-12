@@ -1,12 +1,27 @@
 import { useMemo, useState, useRef } from 'react';
-import { ArrowRight, LocateFixed, Search, ShieldCheck, Image, X, CheckCircle2 } from 'lucide-react';
+import {
+  ArrowRight,
+  LocateFixed,
+  Search,
+  ShieldCheck,
+  Image,
+  X,
+  CheckCircle2,
+  MapPin,
+  Map,
+  AlertTriangle,
+  ArrowUpDown,
+  Loader2,
+  Navigation,
+  RefreshCw,
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { projects, states } from '../../data/mockData';
-import { agencies } from '../../data/mockData';
+import { projects, states, agencies } from '../../data/mockData';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useCaseContext } from '../../contexts/CaseContext';
 import SpeakerButton from '../../components/SpeakerButton';
 import IndiaDrilldownMap from '../../components/IndiaDrilldownMap';
+import { GHAZIABAD_DEMO_COORDS, getNearbyProjects } from '../../utils/geo';
 
 // Sector color classes for roster pins
 const SECTOR_COLORS = {
@@ -95,7 +110,7 @@ function GrievanceModal({ project, onClose, t, addComplaint }) {
           <>
             {/* Project context */}
             <div className="grievance-project-context">
-              <span className="eyebrow" style={{ fontSize: 11, color: '#78716c' }}>
+              <span className="eyebrow" style={{ fontSize: 12, fontWeight: 500, color: '#a8a29e' }}>
                 {t('grievance_project_label')}: <b style={{ color: '#e7e5e4' }}>{project.name}</b>
                 &nbsp;·&nbsp;{t('grievance_sector_label')}: <b style={{ color: '#e7e5e4' }}>{project.sector}</b>
               </span>
@@ -195,7 +210,7 @@ function GrievanceModal({ project, onClose, t, addComplaint }) {
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function CitizenDashboard() {
   const navigate = useNavigate();
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const { addComplaint } = useCaseContext();
 
   const [search, setSearch] = useState('');
@@ -203,6 +218,61 @@ export default function CitizenDashboard() {
   const [selectedDistrict, setSelectedDistrict] = useState('');
   const [selectedProject, setSelectedProject] = useState(null);
   const [grievanceOpen, setGrievanceOpen] = useState(false);
+
+  // Near Me & View State
+  const [activeTab, setActiveTab] = useState('search'); // 'search' | 'near' | 'map'
+  const [userLocation, setUserLocation] = useState(null);
+  const [geoStatus, setGeoStatus] = useState('idle'); // 'idle' | 'locating' | 'success' | 'denied' | 'demo'
+  const [sortOrder, setSortOrder] = useState('asc'); // 'asc' | 'desc'
+  const [showMapInNearMe, setShowMapInNearMe] = useState(true);
+
+  const requestLocation = () => {
+    setActiveTab('near');
+    if (userLocation) return;
+    setGeoStatus('locating');
+    if (typeof navigator !== 'undefined' && 'geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setUserLocation({
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            isDemo: false,
+            name: 'Your Current Location',
+          });
+          setGeoStatus('success');
+        },
+        (err) => {
+          console.warn('Geolocation unavailable:', err);
+          setGeoStatus('denied');
+        },
+        { timeout: 8000, maximumAge: 60000 }
+      );
+    } else {
+      setGeoStatus('denied');
+    }
+  };
+
+  const handleUseDemoLocation = () => {
+    setUserLocation({
+      lat: GHAZIABAD_DEMO_COORDS.lat,
+      lng: GHAZIABAD_DEMO_COORDS.lng,
+      isDemo: true,
+      district: GHAZIABAD_DEMO_COORDS.district,
+      state: GHAZIABAD_DEMO_COORDS.state,
+      name: GHAZIABAD_DEMO_COORDS.name,
+    });
+    setGeoStatus('demo');
+    setState(GHAZIABAD_DEMO_COORDS.state);
+  };
+
+  const nearbyProjectsList = useMemo(() => {
+    if (!userLocation) return [];
+    const list = getNearbyProjects(projects, userLocation.lat, userLocation.lng, lang);
+    if (sortOrder === 'desc') {
+      return [...list].reverse();
+    }
+    return list;
+  }, [userLocation, lang, sortOrder]);
 
   const filtered = useMemo(() =>
     projects.filter(p =>
@@ -229,6 +299,13 @@ export default function CitizenDashboard() {
     return SECTOR_COLORS[key] || 'neutral';
   };
 
+  const getProjectRisk = (project) => {
+    if (project.isAnomaly) return { level: 'high', label: t('risk_badge_high'), text: '🔴 ' + t('risk_badge_high') };
+    const variance = (project.spentAmount - project.sanctionedAmount) / project.sanctionedAmount;
+    if (variance > 0.3 || project.status === 'delayed') return { level: 'medium', label: t('risk_badge_medium'), text: '🟡 ' + t('risk_badge_medium') };
+    return { level: 'low', label: t('risk_badge_low'), text: '🟢 ' + t('risk_badge_low') };
+  };
+
   return (
     <div className="page-content citizen-page">
       {/* ── Welcome ── */}
@@ -241,32 +318,389 @@ export default function CitizenDashboard() {
         <SpeakerButton text={`${t('citizen_title')} ${t('citizen_subtitle')}`} />
       </div>
 
-      {/* ── Search Bar ── */}
-      <div className="citizen-searchbar">
-        <Search size={18} />
-        <input
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder={t('citizen_search')}
-        />
-        <select value={state} onChange={e => setState(e.target.value)}>
-          <option value="">{t('citizen_all_india')}</option>
-          {states.map(s => <option key={s}>{s}</option>)}
-        </select>
-        <button className="near-btn">
-          <LocateFixed size={16} /> {t('citizen_near_me')}
+      {/* ── Top View Switcher ── */}
+      <div className="citizen-view-tabs" style={{
+        display: 'flex',
+        gap: 8,
+        marginBottom: 16,
+        borderBottom: '1px solid var(--line)',
+        paddingBottom: 10,
+        flexWrap: 'wrap',
+      }}>
+        <button
+          className={`citizen-tab-btn ${activeTab === 'search' ? 'active' : ''}`}
+          onClick={() => setActiveTab('search')}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 7,
+            padding: '8px 14px',
+            borderRadius: 8,
+            border: activeTab === 'search' ? '1px solid var(--brand)' : '1px solid var(--line)',
+            background: activeTab === 'search' ? 'var(--brand)' : '#fff',
+            color: activeTab === 'search' ? '#fff' : 'var(--muted)',
+            fontWeight: 700,
+            fontSize: 11,
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+          }}
+        >
+          <Search size={14} /> {t('tab_search_projects')}
+        </button>
+
+        <button
+          className={`citizen-tab-btn ${activeTab === 'near' ? 'active' : ''}`}
+          onClick={requestLocation}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 7,
+            padding: '8px 14px',
+            borderRadius: 8,
+            border: activeTab === 'near' ? '1px solid var(--brand)' : '1px solid var(--line)',
+            background: activeTab === 'near' ? 'var(--brand)' : '#fff',
+            color: activeTab === 'near' ? '#fff' : 'var(--muted)',
+            fontWeight: 700,
+            fontSize: 11,
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+          }}
+        >
+          <LocateFixed size={14} /> {t('tab_near_me')}
+          {userLocation?.isDemo && (
+            <span style={{
+              fontSize: 8,
+              padding: '1px 5px',
+              borderRadius: 4,
+              background: activeTab === 'near' ? 'rgba(255,255,255,0.25)' : '#fef3c7',
+              color: activeTab === 'near' ? '#fff' : '#92400e',
+              fontWeight: 800,
+            }}>
+              DEMO
+            </span>
+          )}
+        </button>
+
+        <button
+          className={`citizen-tab-btn ${activeTab === 'map' ? 'active' : ''}`}
+          onClick={() => setActiveTab('map')}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 7,
+            padding: '8px 14px',
+            borderRadius: 8,
+            border: activeTab === 'map' ? '1px solid var(--brand)' : '1px solid var(--line)',
+            background: activeTab === 'map' ? 'var(--brand)' : '#fff',
+            color: activeTab === 'map' ? '#fff' : 'var(--muted)',
+            fontWeight: 700,
+            fontSize: 11,
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+          }}
+        >
+          <Map size={14} /> {t('tab_explore_map')}
         </button>
       </div>
 
-      {/* ── India Map ── */}
-      <div className="citizen-map panel">
-        <IndiaDrilldownMap
-          projects={filtered}
-          selectedState={state}
-          onStateChange={setState}
-          onDistrictSelect={setSelectedDistrict}
-        />
-      </div>
+      {/* ── View: SEARCH PROJECTS ── */}
+      {activeTab === 'search' && (
+        <>
+          {/* Search Bar */}
+          <div className="citizen-searchbar">
+            <Search size={18} />
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder={t('citizen_search')}
+            />
+            <select value={state} onChange={e => setState(e.target.value)}>
+              <option value="">{t('citizen_all_india')}</option>
+              {states.map(s => <option key={s}>{s}</option>)}
+            </select>
+            <button className="near-btn" onClick={requestLocation}>
+              <LocateFixed size={16} /> {t('citizen_near_me')}
+            </button>
+          </div>
+
+          {/* India Map */}
+          <div className="citizen-map panel">
+            <IndiaDrilldownMap
+              projects={filtered}
+              selectedState={state}
+              onStateChange={setState}
+              onDistrictSelect={setSelectedDistrict}
+              userLocation={userLocation}
+              nearbyProjects={userLocation ? nearbyProjectsList : []}
+              onProjectSelect={(proj) => {
+                setSelectedProject(proj);
+                setGrievanceOpen(false);
+              }}
+            />
+          </div>
+        </>
+      )}
+
+      {/* ── View: EXPLORE MAP ── */}
+      {activeTab === 'map' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div className="citizen-searchbar" style={{ marginBottom: 0 }}>
+            <MapPin size={18} />
+            <select value={state} onChange={e => setState(e.target.value)} style={{ flex: 1 }}>
+              <option value="">{t('citizen_all_india')} — Choose a state to drilldown</option>
+              {states.map(s => <option key={s}>{s}</option>)}
+            </select>
+            <button className="near-btn" onClick={requestLocation}>
+              <LocateFixed size={16} /> {t('citizen_near_me')}
+            </button>
+          </div>
+
+          <div className="citizen-map panel" style={{ height: 440 }}>
+            <IndiaDrilldownMap
+              projects={filtered}
+              selectedState={state}
+              onStateChange={setState}
+              onDistrictSelect={setSelectedDistrict}
+              userLocation={userLocation}
+              nearbyProjects={userLocation ? nearbyProjectsList : []}
+              onProjectSelect={(proj) => {
+                setSelectedProject(proj);
+                setGrievanceOpen(false);
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* ── View: NEAR ME ── */}
+      {activeTab === 'near' && (
+        <div className="citizen-near-me-section" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {/* Locating Spinner */}
+          {geoStatus === 'locating' && (
+            <div className="panel" style={{ padding: 24, textAlign: 'center', background: '#F9FAF8' }}>
+              <Loader2 size={24} className="spin" style={{ margin: '0 auto 8px', color: 'var(--brand)' }} />
+              <b style={{ fontSize: 13, color: 'var(--brand)' }}>{t('near_me_locating')}</b>
+            </div>
+          )}
+
+          {/* Location Denied / Unavailable Fallback */}
+          {!userLocation && (geoStatus === 'denied' || geoStatus === 'idle') && (
+            <div className="panel" style={{ padding: 20, border: '1px solid #fed7aa', background: '#fffbf5', borderRadius: 14 }}>
+              <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+                <div style={{ width: 40, height: 40, borderRadius: 10, background: '#ffedd5', color: '#c2410c', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
+                  <AlertTriangle size={22} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <h3 style={{ margin: '0 0 4px', fontSize: 14, color: '#9a3412' }}>{t('near_me_fallback_msg')}</h3>
+                  <p style={{ margin: '0 0 14px', fontSize: 11, color: '#78716c', lineHeight: 1.45 }}>
+                    {t('near_me_privacy_note')}
+                  </p>
+                  <button
+                    className="primary-action"
+                    onClick={handleUseDemoLocation}
+                    style={{ background: '#314D3F', display: 'inline-flex', alignItems: 'center', gap: 7 }}
+                  >
+                    <MapPin size={15} /> {t('near_me_use_demo_btn')}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Location Active: Demo Notice & Privacy Tag */}
+          {userLocation && (
+            <>
+              {userLocation.isDemo && (
+                <div className="demo-notice" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderRadius: 10, background: '#F4EEE9', border: '1px solid #E7D8CF' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span className="pulse-dot" />
+                    <span style={{ fontSize: 9, fontWeight: 800, padding: '2px 7px', background: '#e5b6a8', color: '#27382f', borderRadius: 4 }}>
+                      {t('near_me_demo_badge')}
+                    </span>
+                    <span style={{ fontSize: 11, color: '#6E5A51' }}>{t('near_me_demo_active_banner')}</span>
+                  </div>
+                  <button
+                    onClick={() => { setUserLocation(null); setGeoStatus('idle'); requestLocation(); }}
+                    style={{ border: 0, background: 'transparent', color: 'var(--brand)', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}
+                  >
+                    <RefreshCw size={12} /> {t('near_me_quick_locate')}
+                  </button>
+                </div>
+              )}
+
+              {/* Privacy Notice Bar */}
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                background: '#fff',
+                padding: '9px 14px',
+                borderRadius: 10,
+                border: '1px solid var(--line)',
+                fontSize: 10,
+                color: 'var(--muted)',
+                flexWrap: 'wrap',
+                gap: 8,
+              }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <ShieldCheck size={14} style={{ color: 'var(--brand)' }} />
+                  {t('near_me_privacy_note')}
+                </span>
+                <span style={{ fontWeight: 700, color: '#1c1917', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <Navigation size={13} style={{ color: '#2563eb' }} />
+                  {userLocation.name}
+                </span>
+              </div>
+
+              {/* Interactive Map */}
+              {showMapInNearMe && (
+                <div className="citizen-map panel">
+                  <IndiaDrilldownMap
+                    projects={projects}
+                    selectedState={userLocation.state || state}
+                    onStateChange={setState}
+                    onDistrictSelect={setSelectedDistrict}
+                    userLocation={userLocation}
+                    nearbyProjects={nearbyProjectsList}
+                    onProjectSelect={(proj) => {
+                      setSelectedProject(proj);
+                      setGrievanceOpen(false);
+                    }}
+                  />
+                </div>
+              )}
+
+              {/* Controls Row */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginTop: 4 }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>
+                    {t('near_me_title')} ({nearbyProjectsList.length})
+                  </h3>
+                  <small style={{ color: 'var(--muted)', fontSize: 11 }}>{t('near_me_subtitle')}</small>
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+                    className="secondary-action"
+                    style={{ fontSize: 10, height: 32, padding: '0 10px', display: 'inline-flex', alignItems: 'center', gap: 5 }}
+                  >
+                    <ArrowUpDown size={13} />
+                    {t('near_me_sort_distance')}: {sortOrder === 'asc' ? t('near_me_distance_nearest') : t('near_me_distance_farthest')}
+                  </button>
+                  <button
+                    onClick={() => setShowMapInNearMe(prev => !prev)}
+                    className="secondary-action"
+                    style={{ fontSize: 10, height: 32, padding: '0 10px', display: 'inline-flex', alignItems: 'center', gap: 5 }}
+                  >
+                    <Map size={13} /> {showMapInNearMe ? 'Hide Map' : t('near_me_show_map')}
+                  </button>
+                </div>
+              </div>
+
+              {/* Nearby Projects Grid */}
+              <div className="roster-grid" style={{ marginTop: 4 }}>
+                {nearbyProjectsList.map((p) => {
+                  const riskInfo = getProjectRisk(p);
+                  return (
+                    <div
+                      key={p.id}
+                      className="roster-card"
+                      style={{ cursor: 'pointer', textAlign: 'left', position: 'relative', display: 'flex', flexDirection: 'column', gap: 8, padding: 16 }}
+                      onClick={() => { setSelectedProject(p); setGrievanceOpen(false); }}
+                    >
+                      {/* Top bar with distance and risk badge */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                        <span style={{
+                          fontSize: 10,
+                          fontWeight: 800,
+                          color: '#2563eb',
+                          background: '#eff6ff',
+                          padding: '3px 8px',
+                          borderRadius: 6,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          border: '1px solid #bfdbfe',
+                        }}>
+                          <MapPin size={11} /> {p.distanceFormatted}
+                        </span>
+                        <span style={{
+                          fontSize: 9,
+                          fontWeight: 800,
+                          padding: '3px 7px',
+                          borderRadius: 5,
+                          background: riskInfo.level === 'high' ? '#fee2e2' : riskInfo.level === 'medium' ? '#fef3c7' : '#dcfce7',
+                          color: riskInfo.level === 'high' ? '#991b1b' : riskInfo.level === 'medium' ? '#92400e' : '#166534',
+                        }}>
+                          {riskInfo.text}
+                        </span>
+                      </div>
+
+                      {/* Title & Sector */}
+                      <div className="roster-card-body" style={{ flex: 1 }}>
+                        <span className="roster-id" style={{ display: 'block', fontSize: 10, color: 'var(--muted)', marginBottom: 3 }}>
+                          {p.id} · {p.sector}
+                        </span>
+                        <strong style={{ fontSize: 13, display: 'block', color: 'var(--ink)', lineHeight: 1.35, marginBottom: 6 }}>
+                          {p.name}
+                        </strong>
+                        <div className="roster-meta" style={{ display: 'flex', gap: 10, fontSize: 11, color: 'var(--muted)', marginBottom: 8, flexWrap: 'wrap' }}>
+                          <span>📍 {p.district || p.constituency}, {p.state}</span>
+                          <span>₹{(p.sanctionedAmount / 100000).toFixed(1)}L</span>
+                          <span className={`roster-status ${p.status}`}>
+                            {p.status === 'completed' ? t('citizen_completed') :
+                             p.status === 'in_progress' ? t('citizen_in_progress') :
+                             p.status === 'delayed' ? t('citizen_delayed') :
+                             t('citizen_under_review')}
+                          </span>
+                        </div>
+
+                        {/* Progress Bar */}
+                        <div className="roster-progress-bar" style={{ marginBottom: 4 }}>
+                          <i style={{ width: `${p.physicalProgress}%` }} />
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--muted)' }}>
+                          <span>{p.physicalProgress}% {t('common_physical').toLowerCase()} {t('common_progress').toLowerCase()}</span>
+                          {p.estimatedSiteProgress != null && p.estimatedSiteProgress !== p.physicalProgress && (
+                            <span style={{ color: '#c2410c', fontWeight: 600 }}>
+                              AI Est: {p.estimatedSiteProgress}%
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Card Action Buttons */}
+                      <div style={{ display: 'flex', gap: 6, marginTop: 4, paddingTop: 10, borderTop: '1px solid var(--line)' }}>
+                        <button
+                          className="primary-action"
+                          style={{ flex: 1, height: 32, fontSize: 10 }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/official/risk/${p.id}`);
+                          }}
+                        >
+                          {t('near_me_view_project')} <ArrowRight size={13} />
+                        </button>
+                        <button
+                          className="secondary-action"
+                          style={{ height: 32, fontSize: 10, padding: '0 10px' }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedProject(p);
+                            setGrievanceOpen(true);
+                          }}
+                        >
+                          {t('citizen_raise_grievance')}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {/* ── Constituency Roster (after district click) ── */}
       {selectedDistrict && constituencyProjects.length > 0 && (

@@ -16,11 +16,17 @@ export default function Sidebar() {
   const officialLinks = [
     { to: '/official/dashboard',         icon: LayoutDashboard,    labelKey: 'nav_dashboard' },
     { to: '/official/risk/PRJ002',        icon: ShieldAlert,        labelKey: 'nav_risk' },
-    { to: '/official/investigation',      icon: SearchCheck,        labelKey: 'nav_investigation' },
     { to: '/official/financial',          icon: CircleDollarSign,   labelKey: 'nav_financial' },
     { to: '/official/duplicate',          icon: Copy,               labelKey: 'nav_duplicate' },
     { to: '/official/agency',             icon: BarChart2,          labelKey: 'nav_agency' },
     { to: '/official/comparison',         icon: Activity,           labelKey: 'nav_comparison' },
+  ];
+
+  const investigatorLinks = [
+    { to: '/official/investigations',     icon: SearchCheck,        labelKey: 'nav_investigation' },
+    { to: '/official/risk/PRJ002',        icon: ShieldAlert,        labelKey: 'nav_risk' },
+    { to: '/official/financial',          icon: CircleDollarSign,   labelKey: 'nav_financial' },
+    { to: '/official/duplicate',          icon: Copy,               labelKey: 'nav_duplicate' },
   ];
 
   const citizenLinks = [
@@ -28,7 +34,12 @@ export default function Sidebar() {
     { to: '/citizen/projects', icon: SearchCheck, labelKey: 'nav_projects' },
   ];
 
-  const links = isOfficial ? officialLinks : citizenLinks;
+  const links =
+    user?.role === 'investigator'
+      ? investigatorLinks
+      : isOfficial
+      ? officialLinks
+      : citizenLinks;
   const close = () => setOpen(false);
 
   return (

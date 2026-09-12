@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react';
 import {
   ArrowLeft,
   ArrowRight,
-  CheckCircle2,
   ChevronRight,
   CircleDollarSign,
   Clock3,
@@ -15,6 +14,9 @@ import {
   Building2,
   Landmark,
   FileText,
+  AlertTriangle,
+  Camera,
+  CheckCircle2,
 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { projects, agencies } from '../../data/mockData';
@@ -23,19 +25,26 @@ import SpeakerButton from '../../components/SpeakerButton';
 import EvidenceDrawer from '../../components/EvidenceDrawer';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useCaseContext } from '../../contexts/CaseContext';
+import { useAuth } from '../../contexts/AuthContext';
 
 export default function RiskProfile() {
   const { id = 'PRJ002' } = useParams();
   const navigate = useNavigate();
   const { t } = useLanguage();
+  const { user } = useAuth();
   const { attachNode } = useCaseContext();
 
   const p =
-    projects.find((x) => x.id === id) ||
-    projects.find((x) => x.id === 'PRJ002');
+    projects.find((x) => x.id.toUpperCase() === (id || '').toUpperCase()) ||
+    projects.find((x) => x.id === 'PRJ002') ||
+    projects[0];
 
   const risk = calculateRiskScore(p);
   const agency = agencies.find((a) => a.id === p.agency);
+
+  const reportedProgress = p.physicalProgress ?? 75;
+  const aiVisualEstimate = p.estimatedSiteProgress ?? (p.isAnomaly ? Math.max(20, reportedProgress - 20) : reportedProgress);
+  const discrepancy = Math.abs(reportedProgress - aiVisualEstimate);
 
   const [node, setNode] = useState('Project');
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -62,87 +71,94 @@ export default function RiskProfile() {
 
   const signals = [
     {
-      key: 'Financial anomaly',
+      key: t('signal_financial_name'),
+      nodeId: 'Financial anomaly',
       icon: CircleDollarSign,
       score: Math.min(32, risk.score),
+      levelKey: p.spentAmount > p.sanctionedAmount * 1.1 ? 'high' : 'low',
       level:
-        p.spentAmount > p.sanctionedAmount * 1.1 ? 'HIGH' : 'LOW',
-      detail: `Reported expenditure is ₹${(
+        p.spentAmount > p.sanctionedAmount * 1.1 ? t('signal_high') : t('signal_low'),
+      detail: `${t('signal_financial_finding')} (₹${(
         p.spentAmount / 100000
-      ).toFixed(1)}L against ₹${(p.sanctionedAmount / 100000).toFixed(
+      ).toFixed(1)}L / ₹${(p.sanctionedAmount / 100000).toFixed(
         1
-      )}L sanctioned.`,
+      )}L).`,
     },
     {
-      key: 'Spatial overlap',
+      key: t('signal_spatial_name'),
+      nodeId: 'Spatial overlap',
       icon: MapPin,
       score: 28,
-      level: relatedWork ? 'HIGH' : 'LOW',
+      levelKey: relatedWork ? 'high' : 'low',
+      level: relatedWork ? t('signal_high') : t('signal_low'),
       detail: relatedWork
-        ? `A potentially related ${relatedWork.sector.toLowerCase()} work exists in the same constituency and is surfaced for review.`
-        : 'No comparable work was found in the current dataset.',
+        ? t('signal_spatial_finding')
+        : (t('risk_no_comparable') || 'No comparable work was found in the current dataset.'),
     },
     {
-      key: 'Delay risk',
+      key: t('signal_delay_name'),
+      nodeId: 'Delay risk',
       icon: Clock3,
       score: p.status === 'delayed' ? 16 : 5,
-      level: p.status === 'delayed' ? 'MEDIUM' : 'LOW',
+      levelKey: p.status === 'delayed' ? 'medium' : 'low',
+      level: p.status === 'delayed' ? t('signal_medium') : t('signal_low'),
       detail:
         p.status === 'delayed'
-          ? 'Physical progress is behind the expected timeline.'
-          : 'No material delay signal in the record.',
+          ? t('signal_delay_finding')
+          : (t('signal_delay_detail_normal') || 'No material delay signal in the record.'),
     },
     {
-      key: 'Agency signal',
+      key: t('signal_agency_name'),
+      nodeId: 'Agency signal',
       icon: UserRound,
       score: Math.min(15, agency?.riskScore || 0),
-      level: (agency?.riskScore || 0) > 50 ? 'MEDIUM' : 'LOW',
-      detail:
-        'Historical agency performance is used as contextual evidence, not a finding of wrongdoing.',
+      levelKey: (agency?.riskScore || 0) > 50 ? 'medium' : 'low',
+      level: (agency?.riskScore || 0) > 50 ? t('signal_medium') : t('signal_low'),
+      detail: t('signal_agency_finding'),
     },
   ];
 
   const graphNodes = [
     {
       id: 'MP / Constituency',
-      type: 'CONTEXT',
+      label: t('node_mp'),
+      type: t('type_context'),
       value: p.constituency,
       icon: Landmark,
       position: 'mp',
-      description:
-        'Constituency context associated with this MPLADS work.',
+      description: t('node_mp_desc'),
       evidence: `${p.constituency}, ${p.state}`,
     },
     {
       id: 'Agency',
-      type: 'AGENCY',
+      label: t('node_agency'),
+      type: t('type_agency'),
       value: agency?.name?.split(' - ')[0] || p.agency,
       icon: Building2,
       position: 'agency',
-      description:
-        'Implementing agency recorded against the project.',
+      description: t('node_agency_desc'),
       evidence: agency
         ? `${agency.totalProjects} projects · ${agency.onTimeRate}% on-time rate`
         : 'Agency record available in the project data.',
     },
     {
       id: 'Project',
-      type: 'PROJECT',
+      label: t('node_project'),
+      type: t('type_project'),
       value: p.id,
       icon: FileText,
       position: 'project',
-      description:
-        'Primary MPLADS project record being investigated.',
+      description: t('node_project_desc'),
       evidence: `${p.name} · ${p.status}`,
     },
     {
       id: 'Payment',
-      type: 'FINANCIAL',
+      label: t('node_payment'),
+      type: t('type_financial'),
       value: `₹${(p.spentAmount / 100000).toFixed(1)}L`,
       icon: CircleDollarSign,
       position: 'payment',
-      description:
-        'Reported expenditure associated with this project.',
+      description: t('node_payment_desc'),
       evidence: `Sanctioned ₹${(
         p.sanctionedAmount / 100000
       ).toFixed(1)}L · Reported ₹${(
@@ -151,22 +167,22 @@ export default function RiskProfile() {
     },
     {
       id: 'Location',
-      type: 'GEOSPATIAL',
+      label: t('node_location'),
+      type: t('type_geospatial'),
       value: p.district,
       icon: MapPin,
       position: 'location',
-      description:
-        'Geographic context associated with the project record.',
+      description: t('node_location_desc'),
       evidence: `${p.district}, ${p.state}`,
     },
     {
       id: 'Related Work',
-      type: 'RELATION',
+      label: t('node_related'),
+      type: t('type_relation'),
       value: relatedWork?.id || 'No match',
       icon: Network,
       position: 'related',
-      description:
-        'A candidate related work surfaced by shared project attributes.',
+      description: t('node_related_desc'),
       evidence: relatedWork
         ? `${relatedWork.name} · ${relatedWork.constituency}`
         : 'No comparable record found.',
@@ -181,17 +197,25 @@ export default function RiskProfile() {
 
       <button
         className="back-link"
-        onClick={() => navigate('/official/dashboard')}
+        onClick={() => {
+          if (user?.role === 'citizen' || window.location.pathname.startsWith('/citizen')) {
+            navigate('/citizen');
+          } else {
+            navigate('/official/dashboard');
+          }
+        }}
       >
         <ArrowLeft size={16} />
-        Back to Command Centre
+        {user?.role === 'citizen' || window.location.pathname.startsWith('/citizen')
+          ? (t('btn_back_citizen') || 'Back to Citizen Portal')
+          : t('btn_back_command')}
       </button>
 
       {/* HEADER */}
       <div className="risk-header">
         <div>
           <div className="eyebrow">
-            PROJECT RISK PROFILE · CASE {p.id}
+            {t('risk_eyebrow_prefix')} {p.id}
           </div>
 
           <h2>{p.name}</h2>
@@ -208,10 +232,10 @@ export default function RiskProfile() {
 
           <button
             className="primary-action"
-            onClick={() => navigate('/official/investigation')}
+            onClick={() => navigate(`/official/investigation/${p.id}`)}
           >
             <SearchCheck size={16} />
-            Investigate case
+            {t('btn_investigate')}
           </button>
         </div>
       </div>
@@ -226,13 +250,12 @@ export default function RiskProfile() {
           </div>
 
           <div>
-            <span className="critical-label">HIGH PRIORITY</span>
+            <span className="critical-label">{t('risk_high_label')}</span>
 
-            <h3>Requires verification</h3>
+            <h3>{t('risk_requires_verif')}</h3>
 
             <p>
-              Multiple signals point to a review opportunity.
-              This is not a fraud finding.
+              {t('risk_not_fraud')}
             </p>
           </div>
         </div>
@@ -240,27 +263,27 @@ export default function RiskProfile() {
         <div className="risk-facts">
 
           <div>
-            <span>Sanctioned</span>
+            <span>{t('risk_sanctioned')}</span>
             <b>
               ₹{(p.sanctionedAmount / 100000).toFixed(1)}L
             </b>
           </div>
 
           <div>
-            <span>Reported spend</span>
+            <span>{t('risk_reported_spend')}</span>
             <b>
               ₹{(p.spentAmount / 100000).toFixed(1)}L
             </b>
           </div>
 
           <div>
-            <span>Physical progress</span>
+            <span>{t('risk_physical_progress')}</span>
             <b>{p.physicalProgress}%</b>
           </div>
 
           <div>
-            <span>Case owner</span>
-            <b>District Authority</b>
+            <span>{t('risk_case_owner')}</span>
+            <b>{t('risk_district_authority')}</b>
           </div>
 
         </div>
@@ -271,12 +294,12 @@ export default function RiskProfile() {
         <main>
 
           {/* SIGNAL BREAKDOWN */}
-          <section className="panel">
+          <section className="panel p-6" style={{ padding: '24px' }}>
 
             <div className="panel-head">
               <div>
-                <span className="eyebrow">SIGNAL BREAKDOWN</span>
-                <h3>Why PRAHARI flagged this case</h3>
+                <span className="eyebrow">{t('risk_signal_breakdown_eyebrow')}</span>
+                <h3>{t('risk_signal_breakdown_title')}</h3>
               </div>
 
               <ShieldAlert size={18} />
@@ -289,22 +312,23 @@ export default function RiskProfile() {
 
                 return (
                   <button
-                    className="signal-card"
+                    className="signal-card p-6"
+                    style={{ padding: '24px' }}
                     key={s.key}
-                    onClick={() => { setNode(s.key); setDrawerOpen(true); }}
+                    onClick={() => { setNode(s.nodeId || s.key); setDrawerOpen(true); }}
                   >
 
                     <div className="signal-top">
                       <I size={18} />
 
                       <span
-                        className={`signal-level ${s.level.toLowerCase()}`}
+                        className={`signal-level ${s.levelKey || 'low'}`}
                       >
                         {s.level}
                       </span>
                     </div>
 
-                    <b>{s.key}</b>
+                    <b className="text-base font-semibold text-stone-900 dark:text-stone-100" style={{ fontSize: '1rem', fontWeight: 600 }}>{s.key}</b>
 
                     <div className="signal-meter">
                       <i
@@ -317,10 +341,10 @@ export default function RiskProfile() {
                       />
                     </div>
 
-                    <p>{s.detail}</p>
+                    <p className="text-sm leading-relaxed text-stone-600 dark:text-stone-300" style={{ fontSize: '0.875rem', lineHeight: '1.625' }}>{s.detail}</p>
 
                     <span className="evidence-link">
-                      View evidence
+                      {t('risk_view_evidence')}
                       <ChevronRight size={14} />
                     </span>
 
@@ -331,65 +355,129 @@ export default function RiskProfile() {
             </div>
           </section>
 
-          {/* RISK STORY */}
-          <section className="panel risk-story">
-
+          {/* =====================================================
+              PHYSICAL VERIFICATION & PROGRESS DISCREPANCY
+          ====================================================== */}
+          <section className="panel p-6" style={{ padding: '24px' }}>
             <div className="panel-head">
-
               <div>
-                <span className="eyebrow">EXPLAINABILITY</span>
-                <h3>PRAHARI Risk Story</h3>
-              </div>
-
-              <span className="story-badge">
-                Plain-language explanation
-              </span>
-
-            </div>
-
-            <div className="story-chain">
-
-              <div className="story-step">
-                <span>01</span>
-                <b>Financial signal</b>
-                <p>
-                  Reported expenditure is materially above the sanctioned amount.
+                <span className="eyebrow">{t('verif_physical_title')}</span>
+                <h3>{t('verif_physical_title')}</h3>
+                <p className="panel-subtitle" style={{ fontSize: 11, color: 'var(--muted)', margin: '4px 0 0' }}>
+                  {t('verif_ground_truth_note')}
                 </p>
               </div>
-
-              <div className="story-connector">+</div>
-
-              <div className="story-step">
-                <span>02</span>
-                <b>Relationship signal</b>
-                <p>
-                  A potentially related work is surfaced
-                  using shared project attributes.
-                </p>
-              </div>
-
-              <div className="story-connector">+</div>
-
-              <div className="story-step">
-                <span>03</span>
-                <b>Combined priority</b>
-                <p>
-                  Independent signals converge, so the case
-                  moves higher in the review queue.
-                </p>
-              </div>
-
+              <Camera size={20} style={{ color: 'var(--brand)' }} />
             </div>
 
-            <div className="human-note">
-              <CheckCircle2 size={17} />
+            {/* Comparison Metrics Card */}
+            <div style={{
+              background: '#FAFAF7',
+              border: '1px solid var(--line)',
+              borderRadius: 14,
+              padding: 20,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 16,
+              marginTop: 10,
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+                <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap' }}>
+                  <div>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      {t('verif_reported_progress')}
+                    </span>
+                    <b style={{ fontSize: 26, fontWeight: 800, color: '#1c1917' }}>{reportedProgress}%</b>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      {t('verif_ai_estimate')}
+                    </span>
+                    <b style={{ fontSize: 26, fontWeight: 800, color: '#c2410c' }}>{aiVisualEstimate}%</b>
+                  </div>
+                </div>
 
-              <span>
-                <b>Human-in-the-loop:</b> the investigator confirms,
-                rejects or qualifies these signals after reviewing evidence.
-              </span>
+                {discrepancy > 0 && (
+                  <div style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '6px 12px',
+                    borderRadius: 8,
+                    background: '#ffedd5',
+                    border: '1px solid #fed7aa',
+                    color: '#9a3412',
+                    fontWeight: 800,
+                    fontSize: 12,
+                  }}>
+                    <AlertTriangle size={15} />
+                    <span>⚠️ {discrepancy}-{t('verif_discrepancy_badge')}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Progress Comparison Bars */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 5 }}>
+                    <span style={{ fontWeight: 600, color: '#44403c' }}>{t('verif_reported_progress')} (DPR / Agency Filing)</span>
+                    <span style={{ fontWeight: 700, color: '#1c1917' }}>{reportedProgress}%</span>
+                  </div>
+                  <div style={{ height: 10, background: '#e7e5e4', borderRadius: 6, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${reportedProgress}%`, background: '#314D3F', borderRadius: 6, transition: 'width 0.4s ease' }} />
+                  </div>
+                </div>
+
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 5 }}>
+                    <span style={{ fontWeight: 600, color: '#44403c' }}>{t('verif_ai_estimate')} (Satellite & Site Imagery)</span>
+                    <span style={{ fontWeight: 700, color: '#c2410c' }}>{aiVisualEstimate}%</span>
+                  </div>
+                  <div style={{ height: 10, background: '#e7e5e4', borderRadius: 6, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${aiVisualEstimate}%`, background: '#ea580c', borderRadius: 6, transition: 'width 0.4s ease' }} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Neutral Mismatch Warning Banner */}
+              {discrepancy > 0 ? (
+                <div style={{
+                  display: 'flex',
+                  gap: 12,
+                  alignItems: 'flex-start',
+                  background: '#fffbeb',
+                  border: '1px solid #fef3c7',
+                  borderRadius: 10,
+                  padding: '12px 14px',
+                  marginTop: 4,
+                }}>
+                  <AlertTriangle size={18} style={{ color: '#d97706', flexShrink: 0, marginTop: 2 }} />
+                  <div>
+                    <strong style={{ fontSize: 12, color: '#92400e', display: 'block', marginBottom: 2 }}>
+                      ⚠️ {t('verif_mismatch_title')}
+                    </strong>
+                    <p style={{ margin: 0, fontSize: 11, color: '#78350f', lineHeight: 1.45 }}>
+                      {t('verif_mismatch_desc')}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div style={{
+                  display: 'flex',
+                  gap: 10,
+                  alignItems: 'center',
+                  background: '#f0fdf4',
+                  border: '1px solid #dcfce7',
+                  borderRadius: 10,
+                  padding: '10px 14px',
+                  fontSize: 11,
+                  color: '#166534',
+                }}>
+                  <CheckCircle2 size={16} />
+                  <span>Reported progress matches estimated site reality within standard tolerance.</span>
+                </div>
+              )}
             </div>
-
           </section>
 
           {/* =====================================================
@@ -401,16 +489,15 @@ export default function RiskProfile() {
 
               <div>
                 <span className="eyebrow">
-                  EVIDENCE GRAPH
+                  {t('risk_graph_eyebrow')}
                 </span>
 
                 <h3>
-                  Connected evidence around {p.id}
+                  {t('risk_graph_title_prefix')} {p.id}
                 </h3>
 
                 <p className="panel-subtitle">
-                  Explore relationships between the project,
-                  financial record, agency, location and related works.
+                  {t('risk_graph_subtitle')}
                 </p>
               </div>
 
@@ -421,22 +508,22 @@ export default function RiskProfile() {
             <div className="graph-legend">
               <span>
                 <i className="graph-dot project" />
-                Project
+                {t('risk_graph_legend_project')}
               </span>
 
               <span>
                 <i className="graph-dot context" />
-                Context
+                {t('risk_graph_legend_context')}
               </span>
 
               <span>
                 <i className="graph-dot evidence" />
-                Evidence
+                {t('risk_graph_legend_evidence')}
               </span>
 
               <span>
                 <i className="graph-dot relation" />
-                Candidate relation
+                {t('risk_graph_legend_relation')}
               </span>
             </div>
 
@@ -504,7 +591,7 @@ export default function RiskProfile() {
                     className={`graph-node-card ${item.position} ${
                       node === item.id ? 'selected' : ''
                     } ${
-                      item.type === 'RELATION'
+                      item.type === t('type_relation') || item.type === 'RELATION'
                         ? 'candidate'
                         : ''
                     }`}
@@ -539,9 +626,9 @@ export default function RiskProfile() {
               <div className="selected-evidence-content">
 
                 <div className="selected-evidence-heading">
-                  <span>SELECTED EVIDENCE</span>
+                  <span>{t('risk_selected_evidence')}</span>
 
-                  <b>{selectedNode.id}</b>
+                  <b>{selectedNode.label || selectedNode.id}</b>
                 </div>
 
                 <p>
@@ -550,7 +637,7 @@ export default function RiskProfile() {
 
                 <div className="selected-evidence-source">
 
-                  <span>Record context</span>
+                  <span>{t('risk_record_context')}</span>
 
                   <strong>
                     {selectedNode.evidence}
@@ -567,9 +654,7 @@ export default function RiskProfile() {
               <ShieldAlert size={15} />
 
               <span>
-                Connected records are investigation leads.
-                Relationships shown here do not independently establish
-                fraud or wrongdoing.
+                {t('disclaimer_investigation')}
               </span>
 
             </div>
@@ -581,13 +666,13 @@ export default function RiskProfile() {
         {/* RIGHT SIDE */}
         <aside className="side-stack">
 
-          <section className="panel">
+          <section className="panel p-6" style={{ padding: '24px' }}>
 
             <div className="panel-head">
 
               <div>
                 <span className="eyebrow">
-                  EVIDENCE COMPLETENESS
+                  {t('risk_evidence_completeness_eyebrow')}
                 </span>
 
                 <h3>72%</h3>
@@ -603,11 +688,11 @@ export default function RiskProfile() {
             </div>
 
             <ul className="check-list">
-              <li className="done">Project record</li>
-              <li className="done">Financial record</li>
-              <li className="done">Location data</li>
-              <li>Field verification</li>
-              <li>Supporting document</li>
+              <li className="done">{t('risk_checklist_project')}</li>
+              <li className="done">{t('risk_checklist_financial')}</li>
+              <li className="done">{t('risk_checklist_location')}</li>
+              <li>{t('risk_checklist_field')}</li>
+              <li>{t('risk_checklist_doc')}</li>
             </ul>
 
           </section>
@@ -618,10 +703,10 @@ export default function RiskProfile() {
 
               <div>
                 <span className="eyebrow">
-                  RECOMMENDED ACTION
+                  {t('risk_recommended_eyebrow')}
                 </span>
 
-                <h3>Verify on ground</h3>
+                <h3>{t('risk_recommended_title')}</h3>
               </div>
 
             </div>
@@ -631,17 +716,16 @@ export default function RiskProfile() {
               <SearchCheck size={19} />
 
               <p>
-                Prioritize a physical verification because
-                financial and relationship signals converge.
+                {t('risk_recommended_body')}
               </p>
 
               <button
                 onClick={() =>
-                  navigate('/official/investigation')
+                  navigate(`/official/investigation/${p.id}`)
                 }
                 className="primary-action full"
               >
-                Assign verification
+                {t('btn_assign_verification')}
                 <ArrowRight size={15} />
               </button>
 
@@ -655,29 +739,29 @@ export default function RiskProfile() {
 
               <div>
                 <span className="eyebrow">
-                  CASE HISTORY
+                  {t('risk_case_history_eyebrow')}
                 </span>
 
-                <h3>Accountability trail</h3>
+                <h3>{t('risk_case_history_title')}</h3>
               </div>
 
             </div>
 
             <div className="timeline">
               <span>
-                Detected <b>09 Sep</b>
+                {t('risk_detected')} <b>09 Sep</b>
               </span>
 
               <span>
-                Reviewed <b>Pending</b>
+                {t('risk_reviewed')} <b>{t('risk_pending')}</b>
               </span>
 
               <span>
-                Assigned <b>Pending</b>
+                {t('risk_assigned')} <b>{t('risk_pending')}</b>
               </span>
 
               <span>
-                Field verification <b>Pending</b>
+                {t('risk_field_verification')} <b>{t('risk_pending')}</b>
               </span>
             </div>
 

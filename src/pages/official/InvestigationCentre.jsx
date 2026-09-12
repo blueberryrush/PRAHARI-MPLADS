@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowRight,
   CheckCircle2,
@@ -8,59 +9,142 @@ import {
   MapPin,
   MessageSquare,
   Paperclip,
+  Search,
   SearchCheck,
   ShieldAlert,
   Upload,
   UserRound,
   LockKeyhole,
+  Clock3,
+  Filter,
+  CheckSquare,
+  AlertTriangle,
+  HelpCircle,
+  Eye,
+  Camera,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { projects } from '../../data/mockData';
-import GroundVerificationCapture from '../../components/investigation/GroundVerificationCapture';
-import CalibrationToast from '../../components/CalibrationToast';
-import { useCaseContext } from '../../contexts/CaseContext';
-import { Clock3 } from 'lucide-react';
 import { calculateRiskScore } from '../../data/aiEngine';
+import { useCaseContext } from '../../contexts/CaseContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 
+// Modular Investigation Sub-components
+import CaseSummaryHeader, { getDueDateStatus } from '../../components/investigation/CaseSummaryHeader';
+import WhyFlaggedSection from '../../components/investigation/WhyFlaggedSection';
+import InvestigationBrief from '../../components/investigation/InvestigationBrief';
+import FinancialVerificationPanel from '../../components/investigation/FinancialVerificationPanel';
+import LocationVerificationPanel from '../../components/investigation/LocationVerificationPanel';
+import DuplicateComparisonModal from '../../components/investigation/DuplicateComparisonModal';
+import EvidenceLocker from '../../components/investigation/EvidenceLocker';
+import VerificationChecklistWidget from '../../components/investigation/VerificationChecklistWidget';
+import InvestigationAssignmentModal from '../../components/investigation/InvestigationAssignmentModal';
+import SupervisorReviewPanel from '../../components/investigation/SupervisorReviewPanel';
+import DataFreshnessCard from '../../components/investigation/DataFreshnessCard';
+import CaseTimelineAuditTrail from '../../components/investigation/CaseTimelineAuditTrail';
+import GroundVerificationCapture from '../../components/investigation/GroundVerificationCapture';
+import CalibrationToast from '../../components/CalibrationToast';
+
 export default function InvestigationCentre() {
+  const { id } = useParams();
+  const navigate = useNavigate();
   const { user, getRoleLabel } = useAuth();
   const { t } = useLanguage();
 
-  const [selected, setSelected] = useState('PRJ002');
-  const [outcome, setOutcome] = useState('');
-  const [investigationNote, setInvestigationNote] = useState('');
-  const [saved, setSaved] = useState(false);
+  const {
+    getCase,
+    advanceStatus,
+    assignCase,
+    updateChecklist,
+    recordDuplicateDecision,
+    addEvidenceItem,
+    submitSupervisorReview,
+    recordFeedback,
+    attachEvidence,
+  } = useCaseContext();
+
+  const [selected, setSelected] = useState(id ? id.toUpperCase() : 'PRJ002');
+  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'financial' | 'spatial' | 'evidence' | 'field' | 'review' | 'history'
+
+  // Queue state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [queueFilter, setQueueFilter] = useState('all');
+
+  // Modals state
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false);
+  const [showGVC, setShowGVC] = useState(false);
+
+  // Field Verification Stepper state
   const [fieldStep, setFieldStep] = useState(1);
   const [fieldStarted, setFieldStarted] = useState(false);
-  const [feedback, setFeedback] = useState('');
-  const [assigned, setAssigned] = useState(false);
-  const [escalated, setEscalated] = useState(false);
-  const [evidenceAdded, setEvidenceAdded] = useState(false);
-  const [showGVC, setShowGVC] = useState(false);
-  const { getCase, advanceStatus, recordFeedback, attachEvidence } = useCaseContext();
-
-  const scopedProjects = projects.filter((x) => {
-    if (user?.role === 'ministry') return true;
-
-    if (user?.role === 'state_nodal') {
-      return x.state === (user?.state || 'Uttar Pradesh');
-    }
-
-    if (user?.role === 'mp') {
-      return x.constituency === (user?.constituency || 'Varanasi');
-    }
-
-    return x.district === (user?.district || 'Varanasi');
+  const [fieldChecklist, setFieldChecklist] = useState({
+    item_exists: true,
+    item_dpr: true,
+    item_progress: false,
+    item_plaque: false,
+    item_no_overlap: false,
+    item_quality: false,
   });
+  const [fieldOutcome, setFieldOutcome] = useState('');
+  const [fieldRemarks, setFieldRemarks] = useState('');
+  const [fieldOutcomeRecorded, setFieldOutcomeRecorded] = useState(false);
 
-  const cases = scopedProjects
-    .filter((x) => x.isAnomaly || x.status === 'delayed')
-    .slice(0, 6);
+  // Model Feedback state
+  const [feedback, setFeedback] = useState('');
+
+  // Find target project
+  const targetProject = projects.find(
+    (x) => x.id.toUpperCase() === (id || selected).toUpperCase()
+  );
+
+  // Scoped projects based on user authority
+  const scopedProjects = useMemo(() => {
+    return projects.filter((x) => {
+      if (user?.role === 'ministry') return true;
+      if (user?.role === 'state_nodal') {
+        return x.state === (user?.state || 'Uttar Pradesh');
+      }
+      if (user?.role === 'mp') {
+        return x.constituency === (user?.constituency || 'Varanasi');
+      }
+      return x.district === (user?.district || 'Varanasi');
+    });
+  }, [user]);
+
+  // Base list of anomalous / priority projects
+  const baseCases = useMemo(() => {
+    let list = scopedProjects.filter((x) => x.isAnomaly || x.status === 'delayed' || x.id === 'PRJ002');
+    if (targetProject && !list.some((c) => c.id.toUpperCase() === targetProject.id.toUpperCase())) {
+      list = [targetProject, ...list];
+    }
+    return list;
+  }, [scopedProjects, targetProject]);
+
+  // Sync route param with state
+  useEffect(() => {
+    if (id) {
+      const match = projects.find((x) => x.id.toUpperCase() === id.toUpperCase());
+      if (match && match.id !== selected) {
+        setSelected(match.id);
+        resetCaseState();
+      }
+    }
+  }, [id]);
+
+  const resetCaseState = () => {
+    setFieldStep(1);
+    setFieldStarted(false);
+    setFieldOutcome('');
+    setFieldRemarks('');
+    setFieldOutcomeRecorded(false);
+    setFeedback('');
+  };
 
   const selectedCase =
-    cases.find((x) => x.id === selected) ||
-    cases[0] ||
+    projects.find((x) => x.id.toUpperCase() === selected.toUpperCase()) ||
+    targetProject ||
+    baseCases[0] ||
     projects[1];
 
   const p = selectedCase;
@@ -71,60 +155,93 @@ export default function InvestigationCentre() {
     user?.role === 'ministry'
       ? 'Central Review Cell'
       : user?.role === 'state_nodal'
-        ? `State Investigation Desk · ${
-            user?.state || 'Uttar Pradesh'
-          }`
+        ? `State Investigation Desk · ${user?.state || 'Uttar Pradesh'}`
         : user?.role === 'mp'
-          ? `Constituency Review Desk · ${
-              user?.constituency || 'Varanasi'
-            }`
-          : `District Investigation Desk · ${
-              user?.district || 'Varanasi'
-            }`;
+          ? `Constituency Review Desk · ${user?.constituency || 'Varanasi'}`
+          : `District Investigation Desk · ${user?.district || 'Varanasi'}`;
 
-  const investigatorRole = getRoleLabel(
-    user?.role || 'district_authority'
-  );
+  const investigatorRole = getRoleLabel(user?.role || 'district_authority');
 
-  const resetCaseState = () => {
-    setOutcome('');
-    setInvestigationNote('');
-    setSaved(false);
-    setFieldStep(1);
-    setFieldStarted(false);
-    setFeedback('');
-    setAssigned(false);
-    setEscalated(false);
-    setEvidenceAdded(false);
-  };
-
-  const handleSelectCase = (id) => {
-    setSelected(id);
+  const handleSelectCase = (caseId) => {
+    setSelected(caseId);
     resetCaseState();
+    navigate(`/official/investigation/${caseId}`);
   };
 
-  const handleSaveOutcome = () => {
-    if (!outcome) return;
+  // Filter queue logic across 11 filters + search query
+  const filteredQueue = useMemo(() => {
+    return baseCases.filter((c) => {
+      // Search query match
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const matchesQuery =
+          c.id.toLowerCase().includes(q) ||
+          c.name.toLowerCase().includes(q) ||
+          c.district.toLowerCase().includes(q) ||
+          c.agency.toLowerCase().includes(q);
+        if (!matchesQuery) return false;
+      }
 
-    setSaved(true);
-    advanceStatus(p.id, outcome === 'Verified / Legitimate' ? 'Resolved' : 'Field Verification', investigatorRole, investigationNote);
+      const cData = getCase(c.id);
+      const cRisk = calculateRiskScore(c);
 
-    // Once the investigator has assessed the case,
-    // field verification becomes available.
-    setFieldStep(1);
+      switch (queueFilter) {
+        case 'high':
+          return cRisk.score >= 50 || cRisk.level === 'high' || cRisk.level === 'critical';
+        case 'financial':
+          return c.spentAmount > c.sanctionedAmount || (c.financialProgress - c.physicalProgress > 30);
+        case 'spatial':
+          return c.id === 'PRJ002' || c.id === 'PRJ046' || c.id === 'PRJ047' || (c.description && c.description.includes('SIMILAR'));
+        case 'progress':
+          return c.status === 'delayed' || c.physicalProgress < 50;
+        case 'awaiting':
+          return (cData.evidenceItems || []).length < 3 || cData.status === 'Detected';
+        case 'field':
+          return cData.status === 'Field Verification Dispatched' || c.isAnomaly;
+        case 'overdue':
+          return getDueDateStatus(cData.assignment?.dueDate).cls === 'overdue';
+        case 'assigned_me':
+          return !!cData.assignment;
+        case 'escalated':
+          return cData.status?.toLowerCase().includes('escalated');
+        case 'resolved':
+          return cData.status === 'Resolved';
+        case 'all':
+        default:
+          return true;
+      }
+    });
+  }, [baseCases, searchQuery, queueFilter, getCase]);
+
+  // Checklist for Step 3 in Field Verification
+  const fieldChecklistItems = [
+    { key: 'item_exists', label: '1. Asset physically exists at approved site coordinates' },
+    { key: 'item_dpr', label: '2. Work conforms to approved DPR specifications (width, grade, material)' },
+    { key: 'item_progress', label: `3. Physical progress matches reported milestone (${p.physicalProgress}%)` },
+    { key: 'item_plaque', label: '4. Mandatory MPLADS citizen display signboard / plaque installed' },
+    { key: 'item_no_overlap', label: '5. No overlapping construction with candidate project PRJ001' },
+    { key: 'item_quality', label: '6. Quality of bitumen / concrete complies with state PWD standards' },
+  ];
+
+  const allFieldChecksComplete = Object.values(fieldChecklist).every(Boolean);
+
+  const handleToggleFieldCheck = (key) => {
+    setFieldChecklist((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
   };
 
-  const handleStartFieldVerification = () => {
-    if (!saved) return;
-
-    setFieldStarted(true);
-    setFieldStep(2);
-  };
-
-  const handleFieldStep = (step) => {
-    if (!fieldStarted) return;
-
-    setFieldStep(step);
+  const handleRecordFieldOutcome = () => {
+    if (!fieldOutcome) return;
+    setFieldOutcomeRecorded(true);
+    advanceStatus(
+      p.id,
+      fieldOutcome === 'Verified / Legitimate' ? 'Resolved' : 'Under Review',
+      caseData.assignedOfficer || investigatorRole,
+      'investigator',
+      `Field verification outcome: ${fieldOutcome}. Remarks: ${fieldRemarks || 'Checklist completed.'}`
+    );
   };
 
   return (
@@ -133,823 +250,712 @@ export default function InvestigationCentre() {
 
       {/* HEADER */}
       <div className="workspace-head">
-
         <div>
           <div className="eyebrow">
-            INVESTIGATION WORKSPACE ·{' '}
-            {investigatorContext.toUpperCase()}
+            {t('inv_workspace_eyebrow')} · {investigatorContext.toUpperCase()}
           </div>
-
           <h2>{t('inv_title')}</h2>
-
-          <p>
-            {t('inv_subtitle')}
-          </p>
+          <p>{t('inv_subtitle')}</p>
         </div>
 
         <div className="queue-summary">
           <span>
-            Open <b>12</b>
+            {t('inv_open_count')} <b>12</b>
           </span>
-
           <span>
-            Field <b>6</b>
+            {t('inv_field_count')} <b>6</b>
           </span>
-
           <span>
-            Overdue <b>2</b>
+            {t('inv_overdue_count')} <b>2</b>
           </span>
         </div>
-
       </div>
 
-      {/* INVESTIGATOR CONTEXT */}
+      {/* INVESTIGATOR CONTEXT BANNER */}
       <div className="investigator-context">
-
         <span className="context-dot" />
-
         <div>
-          <span>INVESTIGATOR CONTEXT</span>
-
+          <span>{t('inv_case_owner')}</span>
           <b>{investigatorRole}</b>
-
-          <small>
-            {investigatorContext} · Cases assigned to this review desk
-          </small>
+          <small>{investigatorContext} · Cases assigned to this review desk</small>
         </div>
-
       </div>
 
       <div className="invest-layout">
-
         {/* =====================================================
-            CASE QUEUE
+            CASE QUEUE SIDEBAR (WITH SEARCH & 11 FILTERS)
         ====================================================== */}
         <aside className="case-queue panel">
-
           <div className="panel-head">
-
             <div>
-              <span className="eyebrow">MY QUEUE</span>
-              <h3>Priority cases</h3>
+              <span className="eyebrow">{t('inv_my_queue')}</span>
+              <h3>{t('dash_priority_cases')}</h3>
             </div>
-
-            <ChevronDown size={16} />
-
+            <span className="queue-total-badge">{filteredQueue.length}</span>
           </div>
 
-          <div className="queue-filter">
-
-            <button className="selected">
-              All 12
-            </button>
-
-            <button>
-              High 7
-            </button>
-
-            <button>
-              Field 6
-            </button>
-
+          {/* Search Box */}
+          <div className="queue-search-wrap">
+            <Search size={14} className="search-icon" />
+            <input
+              type="text"
+              className="queue-search-input"
+              placeholder={t('inv_search_placeholder')}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
           </div>
 
-          {cases.map((c) => (
-
+          {/* 11 Functional Filters */}
+          <div className="queue-filter-pills-scroll">
             <button
-              className={`queue-case ${
-                selected === c.id ? 'selected' : ''
-              }`}
-              key={c.id}
-              onClick={() => handleSelectCase(c.id)}
+              type="button"
+              className={queueFilter === 'all' ? 'selected' : ''}
+              onClick={() => setQueueFilter('all')}
             >
-
-              <span
-                className={`queue-score ${
-                  calculateRiskScore(c).level
-                }`}
-              >
-                {calculateRiskScore(c).score}
-              </span>
-
-              <div>
-                <b>{c.id}</b>
-
-                <p>{c.name}</p>
-
-                <small>
-                  {c.district} ·{' '}
-                  {c.status.replace('_', ' ')}
-                </small>
-              </div>
-
-              <ArrowRight size={14} />
-
+              {t('inv_filter_all')} ({baseCases.length})
             </button>
+            <button
+              type="button"
+              className={queueFilter === 'high' ? 'selected' : ''}
+              onClick={() => setQueueFilter('high')}
+            >
+              {t('inv_filter_high')}
+            </button>
+            <button
+              type="button"
+              className={queueFilter === 'financial' ? 'selected' : ''}
+              onClick={() => setQueueFilter('financial')}
+            >
+              {t('inv_filter_fin_anomaly')}
+            </button>
+            <button
+              type="button"
+              className={queueFilter === 'spatial' ? 'selected' : ''}
+              onClick={() => setQueueFilter('spatial')}
+            >
+              {t('inv_filter_spatial_dup')}
+            </button>
+            <button
+              type="button"
+              className={queueFilter === 'progress' ? 'selected' : ''}
+              onClick={() => setQueueFilter('progress')}
+            >
+              {t('inv_filter_progress_anomaly')}
+            </button>
+            <button
+              type="button"
+              className={queueFilter === 'field' ? 'selected' : ''}
+              onClick={() => setQueueFilter('field')}
+            >
+              {t('inv_filter_field')}
+            </button>
+            <button
+              type="button"
+              className={queueFilter === 'awaiting' ? 'selected' : ''}
+              onClick={() => setQueueFilter('awaiting')}
+            >
+              {t('inv_filter_awaiting_evidence')}
+            </button>
+            <button
+              type="button"
+              className={queueFilter === 'overdue' ? 'selected' : ''}
+              onClick={() => setQueueFilter('overdue')}
+            >
+              {t('inv_filter_overdue')}
+            </button>
+            <button
+              type="button"
+              className={queueFilter === 'assigned_me' ? 'selected' : ''}
+              onClick={() => setQueueFilter('assigned_me')}
+            >
+              {t('inv_filter_assigned_me')}
+            </button>
+            <button
+              type="button"
+              className={queueFilter === 'escalated' ? 'selected' : ''}
+              onClick={() => setQueueFilter('escalated')}
+            >
+              {t('inv_filter_escalated')}
+            </button>
+            <button
+              type="button"
+              className={queueFilter === 'resolved' ? 'selected' : ''}
+              onClick={() => setQueueFilter('resolved')}
+            >
+              {t('inv_filter_closed')}
+            </button>
+          </div>
 
-          ))}
+          {/* Cases List */}
+          <div className="queue-cases-list">
+            {filteredQueue.length === 0 ? (
+              <div className="queue-empty-msg">
+                <Filter size={18} className="text-muted" />
+                <p>No cases match selected filter criteria.</p>
+              </div>
+            ) : (
+              filteredQueue.map((c) => {
+                const cRisk = calculateRiskScore(c);
+                const cData = getCase(c.id);
+                const isSelected = selected === c.id;
 
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    className={`queue-case-card ${isSelected ? 'selected' : ''}`}
+                    onClick={() => handleSelectCase(c.id)}
+                  >
+                    <div className="card-top-row">
+                      <span className={`queue-score ${cRisk.level}`}>
+                        {cRisk.score}
+                      </span>
+                      <div className="card-top-info">
+                        <b>{c.id}</b>
+                        <span className="card-status-badge">{cData.status}</span>
+                      </div>
+                    </div>
+
+                    <p className="case-card-title">{c.name}</p>
+
+                    <div className="card-meta-row">
+                      <span>{c.district}</span>
+                      <span>·</span>
+                      <span className="cost-tag">₹{(c.sanctionedAmount / 100000).toFixed(1)}L</span>
+                      {c.spentAmount > c.sanctionedAmount && (
+                        <span className="overrun-tag">Overrun</span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })
+            )}
+          </div>
         </aside>
 
         {/* =====================================================
-            MAIN INVESTIGATION WORKSPACE
+            MAIN WORKSPACE AREA
         ====================================================== */}
         <main className="invest-workspace">
+          {/* 1. COMPACT CASE SUMMARY AT TOP */}
+          <CaseSummaryHeader
+            project={p}
+            risk={risk}
+            caseData={caseData}
+            onOpenAssign={() => setShowAssignModal(true)}
+          />
 
-          {/* CASE HEADER */}
-          <section className="panel case-header">
-
-            <div>
-
-              <div className="eyebrow">
-                CASE {p.id} · {saved ? 'ASSESSED' : 'OPEN'}
-              </div>
-
-              <h2>{p.name}</h2>
-
-              <p>
-                <MapPin size={14} />
-                {p.district}, {p.state} · Last action:{' '}
-                {saved ? 'Investigator assessment' : 'AI review'} ·
-                Next:{' '}
-                {saved
-                  ? 'field verification'
-                  : 'investigator assessment'}
-              </p>
-
-            </div>
-
-            <div className="case-owner">
-
-              <span>CASE OWNER</span>
-
-              <b>{investigatorRole}</b>
-
-              <small>{investigatorContext}</small>
-
-            </div>
-
-          </section>
-
-          {/* TABS */}
+          {/* NAVIGATION TABS */}
           <div className="invest-tabs">
-
-            <button className="active">
-              Overview
+            <button
+              type="button"
+              className={activeTab === 'overview' ? 'active' : ''}
+              onClick={() => setActiveTab('overview')}
+            >
+              {t('tab_overview')}
             </button>
-
-            <button>Financial</button>
-
-            <button>Spatial</button>
-
-            <button>Related Works</button>
-
-            <button>History</button>
-
+            <button
+              type="button"
+              className={activeTab === 'financial' ? 'active' : ''}
+              onClick={() => setActiveTab('financial')}
+            >
+              {t('tab_financial')}
+            </button>
+            <button
+              type="button"
+              className={activeTab === 'spatial' ? 'active' : ''}
+              onClick={() => setActiveTab('spatial')}
+            >
+              {t('tab_spatial')}
+            </button>
+            <button
+              type="button"
+              className={activeTab === 'evidence' ? 'active' : ''}
+              onClick={() => setActiveTab('evidence')}
+            >
+              {t('inv_evidence_locker_title')}
+            </button>
+            <button
+              type="button"
+              className={activeTab === 'field' ? 'active' : ''}
+              onClick={() => setActiveTab('field')}
+            >
+              {t('inv_field_eyebrow')}
+            </button>
+            <button
+              type="button"
+              className={activeTab === 'review' ? 'active' : ''}
+              onClick={() => setActiveTab('review')}
+            >
+              {t('inv_supervisor_review_title')}
+            </button>
+            <button
+              type="button"
+              className={activeTab === 'history' ? 'active' : ''}
+              onClick={() => setActiveTab('history')}
+            >
+              {t('inv_audit_trail_label')}
+            </button>
           </div>
 
-          <div className="invest-grid">
-
-            {/* =================================================
-                EVIDENCE
-            ================================================== */}
-            <section className="panel evidence-panel">
-
-              <div className="panel-head">
-
-                <div>
-                  <span className="eyebrow">EVIDENCE</span>
-
-                  <h3>Review the signals</h3>
-                </div>
-
-                <ShieldAlert size={18} />
-
-              </div>
-
-              {/* Financial */}
-              <div className="evidence-row">
-
-                <div className="evidence-icon red">
-                  <Flag size={17} />
-                </div>
-
-                <div>
-                  <b>Financial anomaly</b>
-
-                  <p>
-                    ₹
-                    {(p.spentAmount / 100000).toFixed(1)}
-                    L reported against ₹
-                    {(p.sanctionedAmount / 100000).toFixed(1)}
-                    L sanctioned.
-                  </p>
-                </div>
-
-                <span className="confidence">
-                  HIGH
-                </span>
-
-              </div>
-
-              {/* Spatial */}
-              <div className="evidence-row">
-
-                <div className="evidence-icon teal">
-                  <MapPin size={17} />
-                </div>
-
-                <div>
-                  <b>
-                    Spatial / duplicate candidate
-                  </b>
-
-                  <p>
-                    PRJ001 is a nearby, similarly described
-                    work. Compare before concluding overlap.
-                  </p>
-                </div>
-
-                <span className="confidence">
-                  HIGH
-                </span>
-
-              </div>
-
-              {/* Completeness */}
-              <div className="evidence-row">
-
-                <div className="evidence-icon amber">
-                  <FileText size={17} />
-                </div>
-
-                <div>
-                  <b>Evidence completeness</b>
-
-                  <p>
-                    72% of expected project evidence is
-                    currently available.
-                  </p>
-                </div>
-
-                <span className="confidence">
-                  72%
-                </span>
-
-              </div>
-
-              {/* Evidence chain */}
-              <div className="record-chain">
-
-                <span>Sanction</span>
-
-                <i>→</i>
-
-                <span>Work order</span>
-
-                <i>→</i>
-
-                <span>Bill</span>
-
-                <i>→</i>
-
-                <span>Payment</span>
-
-                <i>→</i>
-
-                <span>Physical work</span>
-
-              </div>
-
-              {/* Governance note */}
-              <div className="investigation-governance-note">
-
-                <ShieldAlert size={15} />
-
-                <span>
-                  {t('disclaimer_full')}
-                </span>
-
-              </div>
-
-            </section>
-
-            {/* =================================================
-                INVESTIGATOR ASSESSMENT
-            ================================================== */}
-            <section className="panel action-workspace">
-
-              <div className="panel-head">
-
-                <div>
-                  <span className="eyebrow">
-                    INVESTIGATOR ASSESSMENT
-                  </span>
-
-                  <h3>What did you find?</h3>
-                </div>
-
-                {saved && (
-                  <span className="assessment-saved">
-                    <CheckCircle2 size={14} />
-                    Saved
-                  </span>
-                )}
-
-              </div>
-
-              <label className="field-label">
-                Assessment
-              </label>
-
-              <select
-                className="select wide"
-                value={outcome}
-                disabled={saved}
-                onChange={(e) => {
-                  setOutcome(e.target.value);
-                  setSaved(false);
-                }}
-              >
-
-                <option value="">
-                  Select an outcome…
-                </option>
-
-                <option value="Verified / Legitimate">
-                  Verified / Legitimate
-                </option>
-
-                <option value="Needs Further Review">
-                  Needs Further Review
-                </option>
-
-                <option value="Corrective Action Required">
-                  Corrective Action Required
-                </option>
-
-                <option value="Escalated">
-                  Escalated
-                </option>
-
-                <option value="Insufficient Evidence">
-                  Insufficient Evidence
-                </option>
-
-              </select>
-
-              <label className="field-label">
-                Investigation note
-              </label>
-
-              <textarea
-                className="note-box"
-                value={investigationNote}
-                disabled={saved}
-                onChange={(e) =>
-                  setInvestigationNote(e.target.value)
-                }
-                placeholder="Record what the evidence supports. Avoid conclusions that are not independently verified."
+          {/* TAB 1: OVERVIEW */}
+          {activeTab === 'overview' && (
+            <div className="workspace-tab-content">
+              {/* 2. WHY WAS THIS CASE FLAGGED? */}
+              <WhyFlaggedSection
+                project={p}
+                risk={risk}
+                onOpenDuplicateModal={() => setShowDuplicateModal(true)}
+                onOpenFinancialDetails={() => setActiveTab('financial')}
               />
 
-              {/* Evidence attachment */}
-              <button
-                type="button"
-                className={`evidence-upload ${
-                  evidenceAdded ? 'added' : ''
-                }`}
-                onClick={() =>
-                  setEvidenceAdded(!evidenceAdded)
+              {/* 3. INVESTIGATION BRIEF */}
+              <InvestigationBrief project={p} />
+
+              {/* 14. ACTIONABLE VERIFICATION CHECKLIST */}
+              <VerificationChecklistWidget
+                caseData={caseData}
+                onToggleCheck={(key, isChecked) =>
+                  updateChecklist(p.id, key, isChecked, investigatorRole)
                 }
-              >
+              />
 
-                <Upload size={18} />
-
-                <div>
-
-                  <b>
-                    {evidenceAdded
-                      ? 'Evidence marked for attachment'
-                      : 'Add evidence'}
-                  </b>
-
-                  <span>
-                    Document · Photo · Location ·
-                    Field observation
-                  </span>
-
-                </div>
-
-                <Paperclip size={16} />
-
-              </button>
-
-              {/* Action buttons */}
-              <div className="action-buttons">
-
-                <button
-                  className={`secondary-action ${
-                    assigned ? 'action-active' : ''
-                  }`}
-                  onClick={() => setAssigned(!assigned)}
-                >
-                  <UserRound size={15} />
-
-                  {assigned
-                    ? 'Assigned'
-                    : 'Assign'}
-                </button>
-
-                <button
-                  className={`secondary-action ${
-                    escalated ? 'action-active' : ''
-                  }`}
-                  onClick={() =>
-                    setEscalated(!escalated)
-                  }
-                >
-                  <ArrowRight size={15} />
-
-                  {escalated
-                    ? 'Escalated'
-                    : 'Escalate'}
-                </button>
-
-                <button
-                  className="primary-action"
-                  disabled={!outcome || saved}
-                  onClick={handleSaveOutcome}
-                >
-
-                  {saved ? (
-                    <>
-                      <CheckCircle2 size={15} />
-                      Outcome saved
-                    </>
-                  ) : (
-                    <>
-                      Save outcome
-                      <CheckCircle2 size={15} />
-                    </>
-                  )}
-
-                </button>
-
-              </div>
-
-              {!outcome && (
-                <div className="assessment-hint">
-                  <LockKeyhole size={14} />
-                  Select an assessment before closing
-                  this review step.
-                </div>
-              )}
-
-            </section>
-
-          </div>
-
-          {/* =====================================================
-              FIELD VERIFICATION
-          ====================================================== */}
-          <section className="panel field-verification">
-
-            <div className="panel-head">
-
-              <div>
-                <span className="eyebrow">
-                  FIELD VERIFICATION
-                </span>
-
-                <h3>Close the loop</h3>
-              </div>
-
-              <span className="field-badge">
-                <MapPin size={14} />
-                Mobile-ready
-              </span>
-
+              {/* 13. DATA FRESHNESS CARD */}
+              <DataFreshnessCard />
             </div>
-
-            {!saved && (
-              <div className="verification-locked">
-
-                <LockKeyhole size={16} />
-
-                <span>
-                  Complete and save the investigator
-                  assessment to start field verification.
-                </span>
-
-              </div>
-            )}
-
-            <div className="field-steps">
-
-              {/* STEP 1 */}
-              <button
-                className={`field-step ${
-                  fieldStep === 1 ? 'active' : ''
-                } ${
-                  saved && fieldStep > 1 ? 'completed' : ''
-                }`}
-                disabled={!saved}
-                onClick={() => handleFieldStep(1)}
-              >
-
-                <span>01</span>
-
-                <b>Expected location</b>
-
-                <small>
-                  Project coordinates available
-                </small>
-
-              </button>
-
-              {/* STEP 2 */}
-              <button
-                className={`field-step ${
-                  fieldStep === 2 ? 'active' : ''
-                } ${
-                  fieldStep > 2 ? 'completed' : ''
-                }`}
-                disabled={!fieldStarted}
-                onClick={() => { handleFieldStep(2); if (fieldStarted) setShowGVC(true); }}
-              >
-
-                <span>02</span>
-
-                <b>Capture evidence</b>
-
-                <small>
-                  Photo + timestamp + location
-                </small>
-
-              </button>
-
-              {/* STEP 3 */}
-              <button
-                className={`field-step ${
-                  fieldStep === 3 ? 'active' : ''
-                } ${
-                  fieldStep > 3 ? 'completed' : ''
-                }`}
-                disabled={!fieldStarted}
-                onClick={() => handleFieldStep(3)}
-              >
-
-                <span>03</span>
-
-                <b>Verify checklist</b>
-
-                <small>
-                  Existence · location · progress
-                </small>
-
-              </button>
-
-              {/* STEP 4 */}
-              <button
-                className={`field-step ${
-                  fieldStep === 4 ? 'active' : ''
-                }`}
-                disabled={!fieldStarted}
-                onClick={() => handleFieldStep(4)}
-              >
-
-                <span>04</span>
-
-                <b>Record outcome</b>
-
-                <small>
-                  Verified · issue · insufficient
-                </small>
-
-              </button>
-
-            </div>
-
-            <button
-              className="primary-action"
-              disabled={!saved}
-              onClick={handleStartFieldVerification}
-            >
-
-              {fieldStarted
-                ? 'Field verification active'
-                : 'Start field verification'}
-
-              <ArrowRight size={15} />
-
-            </button>
-
-            {fieldStarted && (
-              <div className="field-progress-message">
-
-                <CheckCircle2 size={15} />
-
-                <span>
-                  Field verification started. Current
-                  step:{' '}
-                  <b>
-                    {fieldStep === 1
-                      ? 'Expected location'
-                      : fieldStep === 2
-                        ? 'Capture evidence'
-                        : fieldStep === 3
-                          ? 'Verify checklist'
-                          : 'Record outcome'}
-                  </b>
-                </span>
-
-              </div>
-            )}
-
-          </section>
-
-          {/* =====================================================
-              MODEL FEEDBACK
-          ====================================================== */}
-          <section className="panel feedback-panel">
-
-            <MessageSquare size={18} />
-
-            <div>
-
-              <span className="eyebrow">
-                MODEL FEEDBACK
-              </span>
-
-              <h3>
-                Did the original risk assessment hold?
-              </h3>
-
-              <p>
-                Investigator outcomes become labelled
-                feedback for calibration and false-positive
-                analysis.
-              </p>
-
-            </div>
-
-            <div className="feedback-actions">
-
-              <button
-                className={
-                  feedback === 'Yes'
-                    ? 'feedback-selected'
-                    : ''
-                }
-                disabled={!saved}
-                onClick={() => { setFeedback('Yes'); recordFeedback(p.id, 'Confirmed Anomaly', p.district || 'Varanasi', 'financial overspend'); }}
-              >
-                Yes
-              </button>
-
-              <button
-                className={
-                  feedback === 'Partially'
-                    ? 'feedback-selected'
-                    : ''
-                }
-                disabled={!saved}
-                onClick={() => { setFeedback('Partially'); recordFeedback(p.id, 'Partially Confirmed', p.district || 'Varanasi', 'expenditure timing mismatch'); }}
-              >
-                Partially
-              </button>
-
-              <button
-                className={
-                  feedback === 'No'
-                    ? 'feedback-selected'
-                    : ''
-                }
-                disabled={!saved}
-                onClick={() => { setFeedback('No'); recordFeedback(p.id, 'False Alarm', p.district || 'Varanasi', 'seasonal roadwork delays'); }}
-              >
-                No
-              </button>
-
-            </div>
-
-          </section>
-
-          {/* =====================================================
-              TRUST & GOVERNANCE
-          ====================================================== */}
-          <section className="panel trust-panel">
-
-            <div className="panel-head">
-
-              <div>
-                <span className="eyebrow">
-                  TRUST & GOVERNANCE
-                </span>
-
-                <h3>Evidence provenance</h3>
-              </div>
-
-              <ShieldAlert size={18} />
-
-            </div>
-
-            <div className="trust-grid">
-
-              <div>
-                <span className="trust-label">
-                  SOURCE RECORDS
-                </span>
-
-                <b>eSAKSHI · PFMS · GIS</b>
-              </div>
-
-              <div>
-                <span className="trust-label">
-                  AI STATUS
-                </span>
-
-                <b>Risk signal — not a fraud verdict</b>
-
-                <small>
-                  Human review is required before any case
-                  decision.
-                </small>
-              </div>
-
-              <div>
-                <span className="trust-label">
-                  ACCESS
-                </span>
-
-                <b>{investigatorRole}</b>
-
-                <small>
-                  {investigatorContext}
-                </small>
-              </div>
-
-              <div>
-                <span className="trust-label">
-                  AUDIT TRAIL
-                </span>
-
-                <b>Review actions attributable</b>
-
-                <small>
-                  Assessment, verification and feedback
-                  are linked to the investigator.
-                </small>
-              </div>
-
-            </div>
-
-            <div className="evidence-provenance">
-
-              <span>Source record · </span>
-              <i>→</i>
-
-              <span>AI signal</span>
-              <i>→</i>
-
-              <span>Investigator review</span>
-              <i>→</i>
-
-              <span>Field verification</span>
-
-            </div>
-
-          </section>
-
-          <section className="panel audit-trail-panel">
-            <div className="panel-head">
-              <div>
-                <span className="eyebrow">AUDIT TRAIL</span>
-                <h3>Accountability record</h3>
-              </div>
-            </div>
-            <div className="audit-trail">
-              {caseData?.auditHistory?.slice().reverse().map((entry, i) => (
-                <div key={i} className="audit-trail-row">
-                  <span className="audit-dot" />
+          )}
+
+          {/* TAB 2: FINANCIAL VERIFICATION */}
+          {activeTab === 'financial' && (
+            <div className="workspace-tab-content">
+              {/* 4. FINANCIAL VERIFICATION PANEL */}
+              <FinancialVerificationPanel project={p} />
+
+              {/* Connected Signals for Financial Context */}
+              <div className="panel sub-panel">
+                <div className="panel-head">
                   <div>
-                    <b>{entry.action}</b>
-                    <p>{entry.note}</p>
-                    <small>
-                      {new Date(entry.timestamp).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
-                      {' · '}{entry.officerName || 'System'}
-                      {entry.hash && <code style={{ marginLeft: 6, fontSize: 10, color: '#78716c' }}>#{entry.hash}</code>}
-                    </small>
+                    <span className="eyebrow">PFMS RECONCILIATION DIRECTIVE</span>
+                    <h3>Auditor Guidance on Fund Disbursement</h3>
                   </div>
                 </div>
-              ))}
+                <p className="panel-sub" style={{ margin: '8px 0' }}>
+                  Under General Financial Rules (GFR), disbursements exceeding ₹10 Lakh beyond administrative sanction require ratification by the District Magistrate. Ensure Measurement Book MB-42 is inspected before approving any additional expenditure claims.
+                </p>
+              </div>
             </div>
-          </section>
-        </main>
+          )}
 
+          {/* TAB 3: LOCATION & SPATIAL VERIFICATION */}
+          {activeTab === 'spatial' && (
+            <div className="workspace-tab-content">
+              {/* 5. LOCATION VERIFICATION PANEL */}
+              <LocationVerificationPanel
+                project={p}
+                caseData={caseData}
+                onStartFieldVerification={() => {
+                  setActiveTab('field');
+                  setFieldStarted(true);
+                  setFieldStep(2);
+                }}
+              />
+
+              {/* 6. DUPLICATE CANDIDATE COMPARISON TRIGGER CARD */}
+              <section className="panel duplicate-trigger-panel">
+                <div className="panel-head">
+                  <div>
+                    <span className="eyebrow">{t('signal_spatial_name')}</span>
+                    <h3>{t('inv_dup_modal_title')}</h3>
+                    <p className="panel-sub">
+                      Suspected proximity overlap with candidate <b>PRJ001</b> (180m distance).
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="primary-action"
+                    onClick={() => setShowDuplicateModal(true)}
+                  >
+                    Compare PRJ001 vs PRJ002 Side-by-Side →
+                  </button>
+                </div>
+
+                {caseData?.duplicateDecision && (
+                  <div className="decision-recorded-box">
+                    <CheckCircle2 size={16} className="text-brand" />
+                    <span>
+                      Adjudication Recorded on Docket:{' '}
+                      <b>{caseData.duplicateDecision.replace('_', ' ').toUpperCase()}</b>
+                    </span>
+                  </div>
+                )}
+              </section>
+            </div>
+          )}
+
+          {/* TAB 4: EVIDENCE LOCKER */}
+          {activeTab === 'evidence' && (
+            <div className="workspace-tab-content">
+              {/* 7. EVIDENCE LOCKER (6 CATEGORIES) */}
+              <EvidenceLocker
+                caseData={caseData}
+                onAddEvidence={(item) =>
+                  addEvidenceItem(p.id, item, investigatorRole)
+                }
+              />
+            </div>
+          )}
+
+          {/* TAB 5: FIELD VERIFICATION WORKFLOW (4 STEPS) */}
+          {activeTab === 'field' && (
+            <div className="workspace-tab-content">
+              <section className="panel field-verification">
+                <div className="panel-head">
+                  <div>
+                    <span className="eyebrow">{t('inv_field_eyebrow')}</span>
+                    <h3>{t('inv_close_loop')}</h3>
+                  </div>
+                  <span className="field-badge">
+                    <MapPin size={14} />
+                    {t('inv_mobile_ready')}
+                  </span>
+                </div>
+
+                {/* 4-Step Header Bar */}
+                <div className="field-steps">
+                  <button
+                    type="button"
+                    className={`field-step ${fieldStep === 1 ? 'active' : ''} ${fieldStep > 1 ? 'completed' : ''}`}
+                    onClick={() => setFieldStep(1)}
+                  >
+                    <span>01</span>
+                    <b>{t('inv_step1_title')}</b>
+                    <small>{t('inv_step1_sub')}</small>
+                  </button>
+
+                  <button
+                    type="button"
+                    className={`field-step ${fieldStep === 2 ? 'active' : ''} ${fieldStep > 2 ? 'completed' : ''}`}
+                    onClick={() => setFieldStep(2)}
+                  >
+                    <span>02</span>
+                    <b>{t('inv_step2_title')}</b>
+                    <small>{t('inv_step2_sub')}</small>
+                  </button>
+
+                  <button
+                    type="button"
+                    className={`field-step ${fieldStep === 3 ? 'active' : ''} ${fieldStep > 3 ? 'completed' : ''}`}
+                    onClick={() => setFieldStep(3)}
+                  >
+                    <span>03</span>
+                    <b>{t('inv_step3_title')}</b>
+                    <small>{t('inv_step3_sub')}</small>
+                  </button>
+
+                  <button
+                    type="button"
+                    className={`field-step ${fieldStep === 4 ? 'active' : ''}`}
+                    onClick={() => setFieldStep(4)}
+                  >
+                    <span>04</span>
+                    <b>{t('inv_step4_title')}</b>
+                    <small>{t('inv_step4_sub')}</small>
+                  </button>
+                </div>
+
+                {/* STEP 1: EXPECTED LOCATION */}
+                {fieldStep === 1 && (
+                  <div className="step-content-box">
+                    <h4>Step 01: Expected Project Coordinates & Boundary</h4>
+                    <p>
+                      Inspect approved site baseline coordinates from the District Engineering registry. When field inspection begins, GPS drift from this point will be calculated.
+                    </p>
+                    <div className="step1-coords-display">
+                      <div>
+                        <span>Latitude:</span> <b>{p.latitude || 25.3176}° N</b>
+                      </div>
+                      <div>
+                        <span>Longitude:</span> <b>{p.longitude || 82.9739}° E</b>
+                      </div>
+                      <div>
+                        <span>Permitted Perimeter:</span> <b>50 meters</b>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="primary-action"
+                      onClick={() => {
+                        setFieldStarted(true);
+                        setFieldStep(2);
+                      }}
+                    >
+                      Proceed to Step 02 (Capture Evidence) →
+                    </button>
+                  </div>
+                )}
+
+                {/* STEP 2: CAPTURE EVIDENCE */}
+                {fieldStep === 2 && (
+                  <div className="step-content-box">
+                    <h4>Step 02: Capture Geotagged Field Evidence</h4>
+                    <p>
+                      Activate device camera to capture timestamped, geotagged on-site reality. Evidence is run through offline spoof-detection and attached to the case dossier.
+                    </p>
+                    {caseData?.capturedEvidence ? (
+                      <div className="captured-preview-box">
+                        <CheckCircle2 size={16} className="text-brand" />
+                        <div>
+                          <b>Geotagged Photo Captured</b>
+                          <small>
+                            Drift: {caseData.capturedEvidence.spatialDriftMeters}m · Timestamp:{' '}
+                            {caseData.capturedEvidence.capturedAt}
+                          </small>
+                        </div>
+                      </div>
+                    ) : null}
+                    <div className="action-row">
+                      <button
+                        type="button"
+                        className="primary-action"
+                        onClick={() => setShowGVC(true)}
+                      >
+                        <Camera size={15} />
+                        Launch Camera / Ground Verification Tool
+                      </button>
+                      <button
+                        type="button"
+                        className="secondary-action"
+                        onClick={() => setFieldStep(3)}
+                      >
+                        Proceed to Step 03 (Checklist) →
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* STEP 3: VERIFY CHECKLIST */}
+                {fieldStep === 3 && (
+                  <div className="step-content-box">
+                    <h4>Step 03: Mandatory 6-Item Field Inspection Checklist</h4>
+                    <p>
+                      Investigators must review each field parameter. All 6 items must be verified before the case can be marked "Verified / Legitimate".
+                    </p>
+
+                    <div className="field-checklist-items">
+                      {fieldChecklistItems.map((item) => {
+                        const checked = !!fieldChecklist[item.key];
+                        return (
+                          <div
+                            key={item.key}
+                            className={`field-check-row ${checked ? 'checked' : ''}`}
+                            onClick={() => handleToggleFieldCheck(item.key)}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => handleToggleFieldCheck(item.key)}
+                            />
+                            <span>{item.label}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <div className="action-row" style={{ marginTop: 14 }}>
+                      <button
+                        type="button"
+                        className="primary-action"
+                        onClick={() => setFieldStep(4)}
+                      >
+                        Proceed to Step 04 (Record Outcome) →
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* STEP 4: RECORD OUTCOME */}
+                {fieldStep === 4 && (
+                  <div className="step-content-box">
+                    <h4>Step 04: Record Field Verification Outcome</h4>
+                    <p>
+                      Select final field determination. Marking "Verified / Legitimate" requires completion of all 6 checklist items in Step 03.
+                    </p>
+
+                    <label className="field-label">Field Determination</label>
+                    <select
+                      className="select wide"
+                      value={fieldOutcome}
+                      onChange={(e) => setFieldOutcome(e.target.value)}
+                    >
+                      <option value="">Select an outcome…</option>
+                      <option
+                        value="Verified / Legitimate"
+                        disabled={!allFieldChecksComplete}
+                      >
+                        Verified / Legitimate {!allFieldChecksComplete ? '(Requires all 6 checks)' : ''}
+                      </option>
+                      <option value="Issue Found / Deficiency Noted">
+                        Issue Found / Deficiency Noted
+                      </option>
+                      <option value="Insufficient Evidence / Access Obstructed">
+                        Insufficient Evidence / Access Obstructed
+                      </option>
+                    </select>
+
+                    {!allFieldChecksComplete && (
+                      <small className="text-amber" style={{ display: 'block', margin: '4px 0 10px' }}>
+                        ⚠ 6 of 6 checks in Step 03 must be completed to select "Verified / Legitimate".
+                      </small>
+                    )}
+
+                    <label className="field-label">Field Notes & Observations</label>
+                    <textarea
+                      className="note-box"
+                      rows={3}
+                      placeholder="Record verified measurements, culvert dimensions, bitumen thickness, or deficiencies..."
+                      value={fieldRemarks}
+                      onChange={(e) => setFieldRemarks(e.target.value)}
+                    />
+
+                    <div className="action-row" style={{ marginTop: 12 }}>
+                      <button
+                        type="button"
+                        className="primary-action"
+                        disabled={!fieldOutcome || fieldOutcomeRecorded}
+                        onClick={handleRecordFieldOutcome}
+                      >
+                        {fieldOutcomeRecorded ? (
+                          <>
+                            <CheckCircle2 size={15} /> Outcome Recorded on Docket
+                          </>
+                        ) : (
+                          'Save & Record Field Outcome'
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </section>
+
+              {/* MODEL FEEDBACK PANEL */}
+              <section className="panel feedback-panel">
+                <MessageSquare size={18} />
+                <div>
+                  <span className="eyebrow">{t('inv_feedback_eyebrow')}</span>
+                  <h3>{t('inv_feedback_title')}</h3>
+                  <p>{t('inv_feedback_sub')}</p>
+                </div>
+
+                <div className="feedback-actions">
+                  <button
+                    type="button"
+                    className={feedback === 'Yes' ? 'feedback-selected' : ''}
+                    onClick={() => {
+                      setFeedback('Yes');
+                      recordFeedback(p.id, 'Confirmed Anomaly', p.district || 'Varanasi', 'financial overspend');
+                    }}
+                  >
+                    {t('inv_feedback_yes')}
+                  </button>
+                  <button
+                    type="button"
+                    className={feedback === 'Partially' ? 'feedback-selected' : ''}
+                    onClick={() => {
+                      setFeedback('Partially');
+                      recordFeedback(p.id, 'Partially Confirmed', p.district || 'Varanasi', 'expenditure timing mismatch');
+                    }}
+                  >
+                    {t('inv_feedback_partially')}
+                  </button>
+                  <button
+                    type="button"
+                    className={feedback === 'No' ? 'feedback-selected' : ''}
+                    onClick={() => {
+                      setFeedback('No');
+                      recordFeedback(p.id, 'False Alarm', p.district || 'Varanasi', 'seasonal roadwork delays');
+                    }}
+                  >
+                    {t('inv_feedback_no')}
+                  </button>
+                </div>
+              </section>
+            </div>
+          )}
+
+          {/* TAB 6: SUPERVISOR REVIEW & DISPOSITION */}
+          {activeTab === 'review' && (
+            <div className="workspace-tab-content">
+              {/* 11. SUPERVISOR REVIEW PANEL */}
+              <SupervisorReviewPanel
+                project={p}
+                caseData={caseData}
+                onSubmitAssessment={(outcomeVal, noteVal) => {
+                  advanceStatus(
+                    p.id,
+                    'Under Review',
+                    caseData.assignedOfficer || investigatorRole,
+                    'investigator',
+                    `Investigator assessment: ${outcomeVal}. Note: ${noteVal}`
+                  );
+                }}
+                onSubmitSupervisorReview={(payload) => {
+                  submitSupervisorReview(
+                    p.id,
+                    payload,
+                    user?.name || 'District Magistrate (Varanasi)',
+                    user?.role || 'district_authority'
+                  );
+                }}
+              />
+            </div>
+          )}
+
+          {/* TAB 7: TIMELINE & AUDIT TRAIL */}
+          {activeTab === 'history' && (
+            <div className="workspace-tab-content">
+              {/* 9 & 12. CASE TIMELINE & AUDIT TRAIL */}
+              <CaseTimelineAuditTrail caseData={caseData} project={p} />
+            </div>
+          )}
+        </main>
+      </div>
+
+      {/* =========================================================
+          MODALS
+      ========================================================= */}
+
+      {/* 6. SPATIAL / DUPLICATE COMPARISON MODAL */}
+      {showDuplicateModal && (
+        <DuplicateComparisonModal
+          currentProject={p}
+          candidateProject={projects.find((pr) => pr.id === 'PRJ001') || projects[0]}
+          existingDecision={caseData?.duplicateDecision}
+          onClose={() => setShowDuplicateModal(false)}
+          onRecordDecision={(currentId, candId, decision, notes) => {
+            recordDuplicateDecision(currentId, candId, decision, notes, investigatorRole);
+            setShowDuplicateModal(false);
+          }}
+        />
+      )}
+
+      {/* 10. INVESTIGATION ASSIGNMENT MODAL */}
+      {showAssignModal && (
+        <InvestigationAssignmentModal
+          project={p}
+          existingAssignment={caseData?.assignment}
+          onClose={() => setShowAssignModal(false)}
+          onSaveAssignment={(assignmentData) => {
+            assignCase(p.id, assignmentData, user?.name || 'District Authority', user?.role || 'district_authority');
+          }}
+        />
+      )}
+
+      {/* GROUND VERIFICATION CAPTURE (CAMERA STREAM) */}
       {showGVC && (
         <GroundVerificationCapture
-          sanctionCoordinates={{ lat: 25.3176, lng: 82.9739 }}
+          sanctionCoordinates={{ lat: p.latitude || 25.3176, lng: p.longitude || 82.9739 }}
+          claimedCategory={p.sector}
           onCaptureComplete={(payload) => {
             attachEvidence(p.id, payload);
             setShowGVC(false);
@@ -958,10 +964,6 @@ export default function InvestigationCentre() {
           onClose={() => setShowGVC(false)}
         />
       )}
-
-      </div>
-
     </div>
-
   );
 }

@@ -61,8 +61,9 @@ function AppLayout() {
   --------------------------------------------- */
 
   const titles = {
-    '/official/risk/PRJ002': 'Project Risk Profile',
-    '/official/investigation': 'Investigation Centre',
+    '/official/risk': t('nav_risk'),
+    '/official/investigation': t('nav_investigation'),
+    '/official/investigations': t('nav_investigation'),
 
     '/citizen': t('nav_citizen'),
     '/citizen/projects': t('nav_projects'),
@@ -76,14 +77,15 @@ function AppLayout() {
   };
 
   /*
-    Risk Profile has a dynamic :id.
-    So if there is no exact title match,
-    use the generic title below.
+    Risk Profile and Investigation Centre have dynamic :id.
+    Resolve the localized title reactively.
   */
   const headerTitle =
     titles[location.pathname] ||
-    (location.pathname.startsWith('/official/risk/')
-      ? 'Project Risk Profile'
+    (location.pathname.startsWith('/official/risk') || location.pathname.startsWith('/citizen/project')
+      ? t('nav_risk')
+      : location.pathname.startsWith('/official/investigation') || location.pathname.startsWith('/official/investigations')
+      ? t('nav_investigation')
       : undefined);
 
   return (
@@ -145,19 +147,36 @@ function AppLayout() {
           />
 
 
-          {/* Risk Profile
-              Every official can view a risk profile
-              within their authorized jurisdiction */}
+          {/* Risk Profile & Project Intelligence
+              Accessible to authorities and citizens for project transparency */}
           <Route
             path="/official/risk/:id"
             element={
               <ProtectedRoute
-                requireOfficial
                 allowedRoles={[
                   'ministry',
                   'state_nodal',
                   'district_authority',
                   'mp',
+                  'investigator',
+                  'citizen',
+                ]}
+              >
+                <RiskProfile />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/citizen/project/:id"
+            element={
+              <ProtectedRoute
+                allowedRoles={[
+                  'citizen',
+                  'ministry',
+                  'state_nodal',
+                  'district_authority',
+                  'mp',
+                  'investigator',
                 ]}
               >
                 <RiskProfile />
@@ -168,7 +187,7 @@ function AppLayout() {
 
           {/* Investigation Centre
               Investigation actions are limited to
-              Ministry / State / District authorities */}
+              Ministry / State / District authorities and Field Investigators */}
           <Route
             path="/official/investigation"
             element={
@@ -178,6 +197,55 @@ function AppLayout() {
                   'ministry',
                   'state_nodal',
                   'district_authority',
+                  'investigator',
+                ]}
+              >
+                <InvestigationCentre />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/official/investigation/:id"
+            element={
+              <ProtectedRoute
+                requireOfficial
+                allowedRoles={[
+                  'ministry',
+                  'state_nodal',
+                  'district_authority',
+                  'investigator',
+                ]}
+              >
+                <InvestigationCentre />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/official/investigations/:id"
+            element={
+              <ProtectedRoute
+                requireOfficial
+                allowedRoles={[
+                  'ministry',
+                  'state_nodal',
+                  'district_authority',
+                  'investigator',
+                ]}
+              >
+                <InvestigationCentre />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/official/investigations"
+            element={
+              <ProtectedRoute
+                requireOfficial
+                allowedRoles={[
+                  'ministry',
+                  'state_nodal',
+                  'district_authority',
+                  'investigator',
                 ]}
               >
                 <InvestigationCentre />
