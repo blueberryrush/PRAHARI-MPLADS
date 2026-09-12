@@ -145,12 +145,14 @@ export default function LandingPage() {
             LIVE DISTRICT SURVEILLANCE INTERACTIVE GEOGRAPHIC EXPLORER
         ============================================================= */}
         <section className="my-12 px-6 max-w-7xl mx-auto" style={{ width: '100%', boxSizing: 'border-box' }}>
-          <GeographicExplorer
-            title={hi ? 'लाइव जिला निगरानी | Live District Surveillance' : 'Live District Surveillance | पारदर्शी सार्वजनिक निगरानी'}
-            subtitle={hi 
-              ? 'वास्तविक समय जोखिम वर्गीकरण एवं नागरिक ग्राउंड सत्यापन के साथ राष्ट्रीय एमपीलैड्स निगरानी ग्रिड' 
-              : 'National surveillance grid tracking MPLADS works with real-time risk classification and ground verification'}
-          />
+          <div className="rounded-2xl border border-stone-800 bg-stone-900/60 p-6 overflow-hidden">
+            <GeographicExplorer
+              title={hi ? 'लाइव जिला निगरानी | Live District Surveillance' : 'Live District Surveillance | पारदर्शी सार्वजनिक निगरानी'}
+              subtitle={hi 
+                ? 'वास्तविक समय जोखिम वर्गीकरण एवं नागरिक ग्राउंड सत्यापन के साथ राष्ट्रीय एमपीलैड्स निगरानी ग्रिड' 
+                : 'National surveillance grid tracking MPLADS works with real-time risk classification and ground verification'}
+            />
+          </div>
         </section>
 
         {/* THREE PORTAL VIEWS */}

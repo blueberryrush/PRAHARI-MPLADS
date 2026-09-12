@@ -1,13 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  ShieldCheck,
   MapPin,
   ArrowRight,
   RotateCcw,
   Loader2,
-  Building2,
-  Filter,
   Eye,
   Activity,
 } from 'lucide-react';
@@ -98,29 +95,35 @@ function createProjection(features, width, height, pad = 24) {
 }
 
 function ringToPath(ring, project) {
-  return (
-    ring
-      .map((point, i) => {
-        const [x, y] = project(point);
-        return `${i ? 'L' : 'M'}${x.toFixed(2)},${y.toFixed(2)}`;
-      })
-      .join(' ') + ' Z'
-  );
+  if (!ring || ring.length < 2) return '';
+  return ring.reduce((path, pt, idx) => {
+    const [x, y] = project(pt);
+    return `${path}${idx === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`;
+  }, '') + 'Z';
 }
 
 function geometryToPath(geometry, project) {
   if (!geometry) return '';
-  if (geometry.type === 'Polygon') return geometry.coordinates.map((r) => ringToPath(r, project)).join(' ');
-  if (geometry.type === 'MultiPolygon') return geometry.coordinates.flat().map((r) => ringToPath(r, project)).join(' ');
+  if (geometry.type === 'Polygon') {
+    return geometry.coordinates.map((ring) => ringToPath(ring, project)).join(' ');
+  }
+  if (geometry.type === 'MultiPolygon') {
+    return geometry.coordinates
+      .map((polygon) => polygon.map((ring) => ringToPath(ring, project)).join(' '))
+      .join(' ');
+  }
   return '';
 }
 
 export default function GeographicExplorer({
-  projects = allProjects,
   title,
   subtitle,
+  initialState,
   onSelectState,
-  initialState = '',
+  onSelectDistrict,
+  projects = allProjects,
+  height = 540,
+  width = 620,
   className = '',
 }) {
   const navigate = useNavigate();
@@ -135,7 +138,6 @@ export default function GeographicExplorer({
   const [loadError, setLoadError] = useState(false);
   const [hoveredItem, setHoveredItem] = useState(null);
   const [selectedNode, setSelectedNode] = useState(null);
-  const [riskFilter, setRiskFilter] = useState('all'); // 'all' | 'high' | 'verified'
 
   // Precompute state statistics
   const stateStats = useMemo(() => {
@@ -158,19 +160,6 @@ export default function GeographicExplorer({
     });
     return map;
   }, [projects]);
-
-  // Overall totals
-  const totalStats = useMemo(() => {
-    let total = 0;
-    let highRisk = 0;
-    let verified = 0;
-    Object.values(stateStats).forEach((s) => {
-      total += s.totalWorks;
-      highRisk += s.highRiskWorks;
-      verified += s.stableWorks;
-    });
-    return { total, highRisk, verified, statesTracked: Object.keys(stateStats).length };
-  }, [stateStats]);
 
   // Load GeoJSON when entering state or initial load
   useEffect(() => {
@@ -204,39 +193,40 @@ export default function GeographicExplorer({
   }, [level, activeState]);
 
   const features = useMemo(() => geo?.features || [], [geo]);
-  const width = 880;
-  const height = level === 'india' ? 500 : 460;
-  const project = useMemo(() => (features.length ? createProjection(features, width, height, 26) : null), [features, width, height]);
+  const projectPoint = useMemo(() => {
+    if (!features.length) return () => [0, 0];
+    return createProjection(features, width, height, 20);
+  }, [features, width, height]);
 
-  // Node positions on SVG coordinates
+  // Projected node coordinates for state nodes
   const stateNodePoints = useMemo(() => {
     return STATE_NODES_DATA.map((node) => {
-      const stats = stateStats[node.name] || {};
-      let x = (node.xPct / 100) * width;
-      let y = (node.yPct / 100) * height;
-
-      if (project && level === 'india') {
-        const projected = project([node.lng, node.lat]);
-        if (projected && !isNaN(projected[0]) && !isNaN(projected[1])) {
-          x = projected[0];
-          y = projected[1];
-        }
+      let x, y;
+      if (features.length) {
+        [x, y] = projectPoint([node.lng, node.lat]);
+      } else {
+        x = (node.xPct / 100) * width;
+        y = (node.yPct / 100) * height;
       }
-
       return {
         ...node,
-        stats,
         x,
         y,
+        stats: stateStats[node.name] || null,
       };
     });
-  }, [stateStats, project, level, width, height]);
+  }, [features, projectPoint, width, height, stateStats]);
 
   const handleStateClick = (stateName) => {
     setActiveState(stateName);
     setLevel('state');
-    setSelectedNode(stateStats[stateName] || null);
+    setSelectedNode(null);
     onSelectState?.(stateName);
+  };
+
+  const handleDistrictClick = (districtName) => {
+    onSelectDistrict?.(districtName, activeState);
+    navigate(`/citizen?state=${encodeURIComponent(activeState)}&district=${encodeURIComponent(districtName)}`);
   };
 
   const handleResetToIndia = () => {
@@ -246,8 +236,7 @@ export default function GeographicExplorer({
     onSelectState?.('');
   };
 
-  // Card theme styling tokens
-  const bgCard = isDark ? '#1c1917' : '#ffffff';
+  // Theme styling tokens
   const borderColor = isDark ? '#292524' : '#e7e5e4';
   const textPrimary = isDark ? '#f5f5f4' : '#1c1917';
   const textSecondary = isDark ? '#a8a29e' : '#57534e';
@@ -257,26 +246,19 @@ export default function GeographicExplorer({
 
   return (
     <div
-      className={`geographic-explorer-root rounded-2xl border transition-colors duration-200 ${className}`}
+      className={`geographic-explorer-root w-full ${className}`}
       style={{
-        background: isDark ? 'radial-gradient(ellipse at top, #1f1d1a 0%, #141210 100%)' : 'radial-gradient(ellipse at top, #faf9f6 0%, #f1efe9 100%)',
-        borderColor,
         color: textPrimary,
-        overflow: 'hidden',
-        boxShadow: isDark ? '0 18px 40px -15px rgba(0,0,0,0.6)' : '0 18px 40px -15px rgba(40,50,40,0.08)',
       }}
     >
-      {/* ── Top Header Toolbar ── */}
-      <div
-        className="px-6 py-5 border-b flex flex-wrap items-center justify-between gap-4"
-        style={{ borderColor, background: isDark ? 'rgba(28,25,23,0.7)' : 'rgba(255,255,255,0.7)', backdropFilter: 'blur(8px)' }}
-      >
+      {/* ── Clean Title Header ── */}
+      <div className="mb-4 pb-4 border-b border-stone-800 flex flex-wrap items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex items-center gap-2 mb-1.5">
             <span
               className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase"
               style={{
-                background: isDark ? 'rgba(5, 150, 105, 0.2)' : 'rgba(5, 150, 105, 0.12)',
+                background: 'rgba(5, 150, 105, 0.2)',
                 color: '#059669',
                 border: '1px solid rgba(5, 150, 105, 0.3)',
               }}
@@ -286,126 +268,28 @@ export default function GeographicExplorer({
             {level === 'state' && (
               <button
                 onClick={handleResetToIndia}
-                className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 hover:text-emerald-500 underline ml-2"
+                className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-500 hover:text-emerald-400 underline ml-2 cursor-pointer"
               >
                 <RotateCcw size={12} /> {hi ? 'अखिल भारत दृश्य' : 'All-India Grid'}
               </button>
             )}
           </div>
-          <h2 className="text-xl sm:text-2xl font-bold tracking-tight m-0" style={{ color: textPrimary }}>
+          <h2 className="text-xl sm:text-2xl font-bold tracking-tight m-0 text-stone-100">
             {title || (hi ? 'लाइव जिला निगरानी | Live District Surveillance' : 'Live District Surveillance | पारदर्शी सार्वजनिक निगरानी')}
           </h2>
-          <p className="text-xs sm:text-sm m-0 mt-1" style={{ color: textSecondary }}>
+          <p className="text-xs sm:text-sm m-0 mt-1 text-stone-400">
             {subtitle ||
               (hi
                 ? 'वास्तविक समय जोखिम वर्गीकरण एवं नागरिक ग्राउंड सत्यापन के साथ राष्ट्रीय एमपीलैड्स निगरानी ग्रिड'
                 : 'National surveillance grid tracking MPLADS works with real-time risk classification and ground verification')}
           </p>
         </div>
-
-        {/* Aggregate KPI Badges */}
-        <div className="flex items-center flex-wrap gap-2.5">
-          <div
-            className="flex items-center gap-2 px-3 py-1.5 rounded-xl border"
-            style={{
-              background: isDark ? 'rgba(0,0,0,0.25)' : '#ffffff',
-              borderColor,
-            }}
-          >
-            <Building2 size={15} className="text-emerald-600" />
-            <div className="text-left leading-tight">
-              <div className="text-[10px] uppercase font-bold text-stone-500">{hi ? 'सक्रिय कार्य' : 'Active Works'}</div>
-              <div className="text-xs font-bold font-mono">{totalStats.total}</div>
-            </div>
-          </div>
-
-          <div
-            className="flex items-center gap-2 px-3 py-1.5 rounded-xl border"
-            style={{
-              background: isDark ? 'rgba(200, 90, 50, 0.1)' : 'rgba(200, 90, 50, 0.08)',
-              borderColor: 'rgba(200, 90, 50, 0.3)',
-            }}
-          >
-            <span className="w-2.5 h-2.5 rounded-full bg-[#C85A32] inline-block animate-pulse" />
-            <div className="text-left leading-tight">
-              <div className="text-[10px] uppercase font-bold text-[#C85A32]">{hi ? 'उच्च जोखिम' : 'High Risk Flags'}</div>
-              <div className="text-xs font-bold font-mono text-[#C85A32]">{totalStats.highRisk}</div>
-            </div>
-          </div>
-
-          <div
-            className="flex items-center gap-2 px-3 py-1.5 rounded-xl border"
-            style={{
-              background: isDark ? 'rgba(5, 150, 105, 0.1)' : 'rgba(5, 150, 105, 0.08)',
-              borderColor: 'rgba(5, 150, 105, 0.3)',
-            }}
-          >
-            <span className="w-2.5 h-2.5 rounded-full bg-[#059669] inline-block" />
-            <div className="text-left leading-tight">
-              <div className="text-[10px] uppercase font-bold text-[#059669]">{hi ? 'सत्यापित कार्य' : 'Verified Stable'}</div>
-              <div className="text-xs font-bold font-mono text-[#059669]">{totalStats.verified}</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Sub-navigation filter bar ── */}
-      <div
-        className="px-6 py-2.5 border-b flex items-center justify-between flex-wrap gap-2 text-xs"
-        style={{ borderColor, background: isDark ? 'rgba(15,14,12,0.4)' : 'rgba(240,238,232,0.6)' }}
-      >
-        <div className="flex items-center gap-2">
-          <span className="font-semibold text-stone-500 flex items-center gap-1">
-            <Filter size={12} /> {hi ? 'फिल्टर:' : 'Filter:'}
-          </span>
-          <button
-            onClick={() => setRiskFilter('all')}
-            className={`px-2.5 py-1 rounded-lg font-medium transition-all ${
-              riskFilter === 'all'
-                ? 'bg-emerald-700 text-white font-bold shadow-sm'
-                : isDark ? 'text-stone-300 hover:bg-stone-800' : 'text-stone-700 hover:bg-stone-200'
-            }`}
-          >
-            {hi ? 'सभी नोड्स' : 'All States'}
-          </button>
-          <button
-            onClick={() => setRiskFilter('high')}
-            className={`px-2.5 py-1 rounded-lg font-medium flex items-center gap-1.5 transition-all ${
-              riskFilter === 'high'
-                ? 'bg-[#C85A32] text-white font-bold shadow-sm'
-                : isDark ? 'text-stone-300 hover:bg-stone-800' : 'text-stone-700 hover:bg-stone-200'
-            }`}
-          >
-            <span className="w-2 h-2 rounded-full bg-red-400 inline-block" />
-            {hi ? 'उच्च असामान्यता' : 'High Anomaly'}
-          </button>
-          <button
-            onClick={() => setRiskFilter('verified')}
-            className={`px-2.5 py-1 rounded-lg font-medium flex items-center gap-1.5 transition-all ${
-              riskFilter === 'verified'
-                ? 'bg-[#059669] text-white font-bold shadow-sm'
-                : isDark ? 'text-stone-300 hover:bg-stone-800' : 'text-stone-700 hover:bg-stone-200'
-            }`}
-          >
-            <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />
-            {hi ? 'सत्यापित स्वस्थ' : 'Verified Stable'}
-          </button>
-        </div>
-
-        <div className="text-stone-500 font-medium text-[11px] flex items-center gap-3">
-          <span className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#C85A32] inline-block ring-2 ring-red-500/30" /> {hi ? 'असामान्यता / विसंगति' : 'Discrepancy / Risk'}
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#059669] inline-block ring-2 ring-emerald-500/30" /> {hi ? 'प्रगति सत्यापित' : 'Progress Verified'}
-          </span>
-        </div>
       </div>
 
       {/* ── Interactive Map Canvas ── */}
-      <div className="relative w-full flex items-center justify-center p-4 sm:p-6" style={{ minHeight: height }}>
+      <div className="relative w-full flex items-center justify-center p-2 sm:p-4" style={{ minHeight: height }}>
         {loading && (
-          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-black/20 backdrop-blur-sm">
+          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-black/20 backdrop-blur-sm rounded-xl">
             <Loader2 className="animate-spin text-emerald-600" size={32} />
             <span className="text-xs font-semibold tracking-wide text-stone-300">
               {hi ? 'भौगोलिक मानचित्र लोड हो रहा है…' : 'Rendering geographic vector mesh…'}
@@ -418,59 +302,52 @@ export default function GeographicExplorer({
           viewBox={`0 0 ${width} ${height}`}
           className="w-full h-auto max-h-[560px] overflow-visible"
           role="img"
-          aria-label={level === 'india' ? 'India Surveillance Grid' : `${activeState} District Map`}
+          aria-label="Interactive India Geographic Explorer"
         >
-          {/* Subtle Grid Pattern */}
-          <defs>
-            <pattern id="geo-grid-pattern" width="36" height="36" patternUnits="userSpaceOnUse">
+          {/* Base Map Polygons */}
+          {features.map((feature, idx) => {
+            const name = level === 'india' ? getStateName(feature) : getDistrictName(feature);
+            const pathData = geometryToPath(feature.geometry, projectPoint);
+            const isHovered = hoveredItem?.name === name;
+
+            return (
               <path
-                d="M 36 0 L 0 0 0 36"
-                fill="none"
-                stroke={isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)'}
-                strokeWidth="0.8"
-              />
-            </pattern>
-          </defs>
-          <rect width={width} height={height} fill="url(#geo-grid-pattern)" />
-
-          {/* GeoJSON Polygon Features if loaded */}
-          {features.length > 0 && project && (
-            <g className="geo-features-layer">
-              {features.map((feature, idx) => {
-                const name = level === 'india' ? getStateName(feature) : getDistrictName(feature);
-                const isSelected = level === 'india' && name.toLowerCase() === activeState.toLowerCase();
-                const isHovered = hoveredItem?.name?.toLowerCase() === name.toLowerCase();
-
-                return (
-                  <path
-                    key={`${name}-${idx}`}
-                    d={geometryToPath(feature.geometry, project)}
-                    fill={isSelected ? (isDark ? '#059669' : '#10b981') : isHovered ? shapeHoverFill : shapeFill}
-                    stroke={isSelected ? '#10b981' : shapeStroke}
-                    strokeWidth={isSelected ? 1.8 : 0.9}
-                    className="cursor-pointer transition-all duration-150"
-                    onMouseEnter={() => setHoveredItem({ name, isState: level === 'india' })}
-                    onMouseLeave={() => setHoveredItem(null)}
-                    onClick={() => {
-                      if (level === 'india') {
-                        handleStateClick(name);
-                      }
-                    }}
-                  />
-                );
-              })}
-            </g>
-          )}
-
-          {/* Fallback India Outline Path if GeoJSON is offline/pending */}
-          {(!features.length || loadError) && (
-            <g className="fallback-india-outline" opacity={0.4}>
-              <path
-                d="M 350,70 L 420,60 L 480,90 L 470,140 L 530,170 L 640,190 L 680,220 L 630,270 L 550,260 L 580,310 L 550,380 L 480,480 L 450,490 L 410,450 L 370,360 L 320,310 L 270,260 L 290,200 L 330,160 Z"
-                fill={shapeFill}
+                key={`feature-${idx}-${name}`}
+                d={pathData}
+                fill={isHovered ? shapeHoverFill : shapeFill}
                 stroke={shapeStroke}
-                strokeWidth="1.5"
+                strokeWidth={level === 'india' ? 0.75 : 0.6}
+                strokeLinejoin="round"
+                className="transition-colors duration-150 cursor-pointer"
+                onMouseEnter={() =>
+                  setHoveredItem({
+                    name,
+                    isState: level === 'india',
+                    stats: level === 'india' ? stateStats[name] : null,
+                  })
+                }
+                onMouseLeave={() => setHoveredItem(null)}
+                onClick={() => (level === 'india' ? handleStateClick(name) : handleDistrictClick(name))}
               />
+            );
+          })}
+
+          {/* Fallback Outline if Vector fails to load */}
+          {(!features.length || loadError) && !loading && (
+            <g className="opacity-30">
+              <rect
+                x={width * 0.15}
+                y={height * 0.12}
+                width={width * 0.7}
+                height={height * 0.76}
+                rx={18}
+                fill="none"
+                stroke={borderColor}
+                strokeDasharray="6 6"
+              />
+              <text x={width / 2} y={height / 2} textAnchor="middle" fill={textSecondary} fontSize={12} fontWeight={600}>
+                {hi ? 'मानचित्र नोड्स सक्रिय हैं' : 'Interactive Mesh Active'}
+              </text>
             </g>
           )}
 
@@ -480,10 +357,6 @@ export default function GeographicExplorer({
               const stats = node.stats || {};
               const isHighRisk = stats.hasAnomaly;
               const dotColor = isHighRisk ? '#C85A32' : '#059669';
-
-              // Filter check
-              if (riskFilter === 'high' && !isHighRisk) return null;
-              if (riskFilter === 'verified' && isHighRisk) return null;
 
               const isSelected = selectedNode?.name === node.name;
               const isHovered = hoveredItem?.name === node.name;
@@ -598,45 +471,36 @@ export default function GeographicExplorer({
           <div
             className="absolute z-30 max-w-sm w-full p-5 rounded-2xl border shadow-2xl transition-all duration-200"
             style={{
-              left: 24,
-              bottom: 24,
-              background: isDark ? '#1c1917' : '#ffffff',
+              background: isDark ? 'rgba(28,25,23,0.95)' : 'rgba(255,255,255,0.96)',
               borderColor,
               color: textPrimary,
+              backdropFilter: 'blur(12px)',
+              top: '16px',
+              right: '16px',
             }}
           >
-            <div className="flex items-start justify-between gap-3 pb-3 border-b" style={{ borderColor }}>
+            <div className="flex items-start justify-between gap-3 mb-3">
               <div>
-                <span
-                  className="text-[10px] font-bold tracking-widest uppercase px-2 py-0.5 rounded-full inline-block mb-1"
-                  style={{
-                    background: selectedNode.hasAnomaly ? 'rgba(200,90,50,0.15)' : 'rgba(5,150,105,0.15)',
-                    color: selectedNode.hasAnomaly ? '#C85A32' : '#059669',
-                  }}
-                >
-                  {selectedNode.hasAnomaly
-                    ? (hi ? '⚠️ विसंगति निगरानी सक्रिय' : '⚠️ ACTIVE SURVEILLANCE')
-                    : (hi ? '✓ सत्यापित स्थिर' : '✓ VERIFIED STABLE')}
+                <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-600">
+                  {hi ? 'राज्य निगरानी प्रोफाइल' : 'STATE SURVEILLANCE PROFILE'}
                 </span>
-                <h3 className="text-base font-bold m-0 flex items-center gap-1.5">
-                  <MapPin size={16} className="text-emerald-600" />
-                  {hi ? selectedNode.nameHi : selectedNode.name}
-                </h3>
+                <h3 className="text-lg font-bold m-0 mt-0.5">{selectedNode.name}</h3>
+                <div className="text-xs text-stone-400">{selectedNode.nameHi}</div>
               </div>
               <button
                 onClick={() => setSelectedNode(null)}
-                className="text-stone-400 hover:text-stone-200 text-sm font-bold p-1 rounded-lg"
-                aria-label="Close"
+                className="text-stone-400 hover:text-stone-200 p-1 text-sm font-bold"
+                aria-label="Close popup"
               >
                 ✕
               </button>
             </div>
 
-            {/* Metrics Grid */}
-            <div className="grid grid-cols-3 gap-2 my-3 text-center">
+            {/* Quick Metrics */}
+            <div className="grid grid-cols-3 gap-2 text-center my-3">
               <div className="p-2 rounded-xl bg-stone-100 dark:bg-stone-900 border border-stone-200 dark:border-stone-800">
-                <div className="text-[10px] uppercase font-bold text-stone-500">{hi ? 'कुल कार्य' : 'Works'}</div>
-                <div className="text-sm font-bold font-mono text-emerald-600">{selectedNode.totalWorks}</div>
+                <div className="text-[10px] uppercase font-bold text-stone-500">{hi ? 'कार्य' : 'Works'}</div>
+                <div className="text-sm font-bold font-mono">{selectedNode.totalWorks}</div>
               </div>
               <div className="p-2 rounded-xl bg-stone-100 dark:bg-stone-900 border border-stone-200 dark:border-stone-800">
                 <div className="text-[10px] uppercase font-bold text-[#C85A32]">{hi ? 'जोखिम' : 'Flags'}</div>
@@ -652,38 +516,19 @@ export default function GeographicExplorer({
             <div className="flex items-center gap-2 mt-4 pt-3 border-t" style={{ borderColor }}>
               <button
                 onClick={() => handleStateClick(selectedNode.name)}
-                className="flex-1 py-2 px-3 rounded-xl text-xs font-bold text-stone-100 bg-stone-800 hover:bg-stone-700 flex items-center justify-center gap-1.5 transition-colors"
+                className="flex-1 py-2 px-3 rounded-xl text-xs font-bold text-stone-100 bg-stone-800 hover:bg-stone-700 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
               >
                 <Eye size={14} /> {hi ? 'जिले देखें' : 'View Districts'}
               </button>
               <button
                 onClick={() => navigate(`/citizen?state=${encodeURIComponent(selectedNode.name)}`)}
-                className="flex-1 py-2 px-3 rounded-xl text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-600 flex items-center justify-center gap-1.5 transition-colors"
+                className="flex-1 py-2 px-3 rounded-xl text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-600 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
               >
                 {hi ? 'नागरिक पोर्टल' : 'Citizen Portal'} <ArrowRight size={14} />
               </button>
             </div>
           </div>
         )}
-      </div>
-
-      {/* ── Footer Bar ── */}
-      <div
-        className="px-6 py-3 border-t flex flex-wrap items-center justify-between text-xs gap-3"
-        style={{ borderColor, background: isDark ? 'rgba(28,25,23,0.5)' : 'rgba(255,255,255,0.5)' }}
-      >
-        <div className="flex items-center gap-2 text-stone-500">
-          <ShieldCheck size={14} className="text-emerald-600" />
-          <span>{hi ? 'सत्यापित एमपीएलएडीएस जियो-डेटाबेस से सीधे संयोजित' : 'Connected to Verified MPLADS Geo-Intelligence Database'}</span>
-        </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => navigate('/citizen')}
-            className="font-bold text-emerald-600 hover:text-emerald-500 flex items-center gap-1"
-          >
-            {hi ? 'सभी 543 संसदीय क्षेत्रों को ब्राउज़ करें →' : 'Browse All 543 Constituencies →'}
-          </button>
-        </div>
       </div>
     </div>
   );
