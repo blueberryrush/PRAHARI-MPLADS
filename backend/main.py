@@ -41,9 +41,9 @@ from models import (
 )
 from services.scoring import calculate_risk_score
 from services.gemini_service import generate_risk_story, analyze_evidence_image
-import backend.supabase_client as db
-import backend.database as auth_db
-import backend.auth_service as auth_svc
+import supabase_client as db
+import database as auth_db
+import auth_service as auth_svc
 
 
 # ─── App ──────────────────────────────────────────────────────────────────────
