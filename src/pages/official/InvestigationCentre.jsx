@@ -63,9 +63,18 @@ export default function InvestigationCentre() {
     submitSupervisorReview,
     recordFeedback,
     attachEvidence,
+    projects: cloudProjects,
   } = useCaseContext();
 
-  const [selected, setSelected] = useState(id ? id.toUpperCase() : 'PRJ002');
+  const allProjects = useMemo(() => {
+    return (cloudProjects && cloudProjects.length > 0) ? cloudProjects : projects;
+  }, [cloudProjects]);
+
+  const [selected, setSelected] = useState(() => {
+    if (id) return id.toUpperCase();
+    if (cloudProjects && cloudProjects.length > 0) return cloudProjects[0].id || cloudProjects[0].work_id;
+    return 'UP-VAR-2024-001';
+  });
   const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'financial' | 'spatial' | 'evidence' | 'field' | 'review' | 'history'
 
   // Queue state
@@ -96,30 +105,34 @@ export default function InvestigationCentre() {
   const [feedback, setFeedback] = useState('');
 
   // Find target project
-  const targetProject = projects.find(
-    (x) => x.id.toUpperCase() === (id || selected).toUpperCase()
-  );
+  const targetProject = useMemo(() => {
+    const targetId = (id || selected || '').toUpperCase();
+    return allProjects.find(
+      (x) => (x.id || x.work_id || '').toUpperCase() === targetId
+    ) || allProjects[0];
+  }, [allProjects, id, selected]);
 
   // Scoped projects based on user authority
   const scopedProjects = useMemo(() => {
-    return projects.filter((x) => {
+    return allProjects.filter((x) => {
       if (user?.role === 'ministry') return true;
       if (user?.role === 'state_nodal') {
-        return x.state === (user?.state || 'Uttar Pradesh');
+        return x.state?.toLowerCase() === (user?.state || 'Uttar Pradesh').toLowerCase();
       }
       if (user?.role === 'mp') {
-        return x.constituency === (user?.constituency || 'Varanasi');
+        return (x.constituency || x.block_constituency)?.toLowerCase() === (user?.constituency || 'Varanasi').toLowerCase();
       }
-      return x.district === (user?.district || 'Varanasi');
+      return (x.district || '').toLowerCase() === (user?.district || 'Varanasi').toLowerCase();
     });
-  }, [user]);
+  }, [user, allProjects]);
 
   // Base list of anomalous / priority projects
   const baseCases = useMemo(() => {
-    let list = scopedProjects.filter((x) => x.isAnomaly || x.status === 'delayed' || x.id === 'PRJ002');
-    if (targetProject && !list.some((c) => c.id.toUpperCase() === targetProject.id.toUpperCase())) {
+    let list = scopedProjects.filter((x) => x.isAnomaly || (x.composite_risk_score >= 70) || x.status === 'delayed' || x.id === 'PRJ002' || x.work_id === 'UP-VAR-2024-001');
+    if (targetProject && !list.some((c) => (c.id || c.work_id || '').toUpperCase() === (targetProject.id || targetProject.work_id || '').toUpperCase())) {
       list = [targetProject, ...list];
     }
+    if (list.length === 0) list = scopedProjects.slice(0, 6);
     return list;
   }, [scopedProjects, targetProject]);
 

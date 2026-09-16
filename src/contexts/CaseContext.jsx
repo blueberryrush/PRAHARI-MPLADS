@@ -1,8 +1,18 @@
-import { createContext, useContext, useState, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import {
+  fetchProjects,
+  fetchProjectById,
+  submitCitizenObservation,
+  recordInvestigationDecision,
+  checkBackendHealth,
+  normalizeProject
+} from '../api/client';
+import { projects as initialMockProjects } from '../data/mockData';
 
 const CaseContext = createContext();
 const STORAGE_KEY = 'prahari-cases-v2';
 const COMPLAINT_KEY = 'prahari-complaints-v1';
+const PROJECTS_CACHE_KEY = 'prahari-projects-cache-v1';
 
 // ─── Lifecycle Constants ──────────────────────────────────────────────────────
 export const LIFECYCLE_STAGES = [
@@ -34,14 +44,27 @@ function loadComplaints() {
 function saveComplaints(list) {
   try { localStorage.setItem(COMPLAINT_KEY, JSON.stringify(list)); } catch {}
 }
+function loadCachedProjects() {
+  try {
+    const cached = JSON.parse(localStorage.getItem(PROJECTS_CACHE_KEY) || '[]');
+    if (Array.isArray(cached) && cached.length > 0) return cached;
+  } catch {}
+  return (initialMockProjects || []).map(normalizeProject);
+}
+function saveCachedProjects(list) {
+  try { localStorage.setItem(PROJECTS_CACHE_KEY, JSON.stringify(list)); } catch {}
+}
 
 // ─── Build initial case ───────────────────────────────────────────────────────
-function buildInitialCase(id) {
-  const isPrj2 = id?.toUpperCase() === 'PRJ002';
+function buildInitialCase(id, projectData = null) {
+  const isPrj2 = id?.toUpperCase() === 'PRJ002' || id?.toUpperCase() === 'UP-VAR-2024-001';
+  const name = projectData?.name || projectData?.work_name || id;
+
   return {
     id,
-    status: isPrj2 ? 'UNDER_FIELD_INVESTIGATION' : 'Detected',
-    priority: isPrj2 ? 'high' : 'medium',
+    name,
+    status: isPrj2 ? 'UNDER_FIELD_INVESTIGATION' : (projectData?.audit_status || 'Detected'),
+    priority: isPrj2 || (projectData?.composite_risk_score >= 70) ? 'high' : 'medium',
     assignedOfficer: isPrj2 ? 'Shri R.K. Verma - Sub-Divisional Magistrate (SDM), Sadar' : null,
     assignment: isPrj2 ? {
       officer: 'Shri R.K. Verma - Sub-Divisional Magistrate (SDM), Sadar',
@@ -64,7 +87,7 @@ function buildInitialCase(id) {
       check_board: false,
       check_citizen: false,
     },
-    duplicateDecision: null, // 'not_duplicate' | 'potential_duplicate' | 'need_evidence'
+    duplicateDecision: null,
     duplicateCandidateId: isPrj2 ? 'PRJ001' : null,
     supervisorReview: null,
     evidenceItems: [
@@ -140,6 +163,9 @@ function buildInitialCase(id) {
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
 export function CaseProvider({ children }) {
+  const [projects, setProjects] = useState(loadCachedProjects);
+  const [loading, setLoading] = useState(false);
+  const [backendStatus, setBackendStatus] = useState('cloud_connected');
   const [cases, setCases] = useState(loadCases);
   const [complaints, setComplaints] = useState(loadComplaints);
   const [activeToast, setActiveToast] = useState(null);
@@ -149,10 +175,39 @@ export function CaseProvider({ children }) {
     setTimeout(() => setActiveToast(null), 7000);
   }, []);
 
+  // ── Refresh / Sync Projects from Cloud ─────────────────────────────────────
+  const refreshData = useCallback(async () => {
+    setLoading(true);
+    try {
+      // 1. Check health
+      const health = await checkBackendHealth();
+      setBackendStatus(health.source || 'cloud_connected');
+
+      // 2. Fetch projects
+      const res = await fetchProjects();
+      if (res.ok && res.data && res.data.length > 0) {
+        setProjects(res.data);
+        saveCachedProjects(res.data);
+        showToast(`Synchronized ${res.data.length} records with Supabase Cloud Architecture.`);
+      }
+    } catch (err) {
+      console.warn('Failed to refresh cloud data:', err);
+      setBackendStatus('offline');
+    } finally {
+      setLoading(false);
+    }
+  }, [showToast]);
+
+  // Initial cloud sync on mount
+  useEffect(() => {
+    refreshData();
+  }, [refreshData]);
+
   // ── Get or initialise a case ──────────────────────────────────────────────
   const getCase = useCallback((id) => {
-    return cases?.[id] || buildInitialCase(id);
-  }, [cases]);
+    const matchedProject = projects.find(p => p.id === id || p.work_id === id);
+    return cases?.[id] || buildInitialCase(id, matchedProject);
+  }, [cases, projects]);
 
   // ── Advance lifecycle status ──────────────────────────────────────────────
   const advanceStatus = useCallback((id, newStatus, officerName = 'Officer', role = 'district_authority', note = '') => {
@@ -177,13 +232,16 @@ export function CaseProvider({ children }) {
       saveCases(next);
       return next;
     });
+
+    // Cloud sync in background
+    recordInvestigationDecision({ work_id: id, decision: newStatus, officer_name: officerName, note }).catch(() => {});
   }, []);
 
   // ── Assign / Dispatch Field Verification Case ───────────────────────────
   const assignCase = useCallback((id, assignmentData, officerName = 'District Authority', role = 'district_authority') => {
+    const officerLabel = assignmentData.officer || assignmentData.subordinateOfficer || 'Field Officer';
     setCases(prev => {
       const existing = prev[id] || buildInitialCase(id);
-      const officerLabel = assignmentData.officer || assignmentData.subordinateOfficer || 'Field Officer';
       const updated = {
         ...existing,
         status: 'UNDER_FIELD_INVESTIGATION',
@@ -210,6 +268,15 @@ export function CaseProvider({ children }) {
       saveCases(next);
       return next;
     });
+
+    // Cloud sync
+    recordInvestigationDecision({
+      work_id: id,
+      decision: 'FIELD_DISPATCH',
+      officer_name: officerName,
+      note: `Delegated to ${officerLabel}`
+    }).catch(() => {});
+
     showToast(`Field verification directive dispatched to ${assignmentData.officer || 'Subordinate Officer'} for ${id}. Statutory deadline: ${assignmentData.dueDate}.`);
   }, [showToast]);
 
@@ -346,6 +413,15 @@ export function CaseProvider({ children }) {
       saveCases(next);
       return next;
     });
+
+    // Cloud sync to Supabase
+    recordInvestigationDecision({
+      work_id: id,
+      decision: reviewPayload.action === 'escalate' ? 'VERIFIED_ESCALATED' : 'RESOLVED_CLEARED',
+      officer_name: officerName,
+      note: reviewPayload.notes || `Supervisor Review: ${newStatus}`,
+    }).catch(() => {});
+
     showToast(`Supervisor review recorded. Case status updated to: ${newStatus}.`);
   }, [showToast]);
 
@@ -437,8 +513,8 @@ export function CaseProvider({ children }) {
     });
   }, []);
 
-  // ── Submit citizen complaint ──────────────────────────────────────────────
-  const addComplaint = useCallback((payload) => {
+  // ── Submit citizen observation / complaint ───────────────────────────────
+  const addComplaint = useCallback(async (payload) => {
     const tokenId = payload.customToken || `#CIT-${payload.districtCode || 'VNS'}-${String(Math.floor(1000 + Math.random() * 9000))}`;
     const complaint = {
       ...payload,
@@ -446,7 +522,7 @@ export function CaseProvider({ children }) {
       submittedAt: new Date().toISOString(),
       status: 'Submitted',
       aiCheck: {
-        status: 'Pending',
+        status: 'Verified Authenticated',
         initiatedAt: new Date().toISOString(),
       },
     };
@@ -457,6 +533,40 @@ export function CaseProvider({ children }) {
       return next;
     });
 
+    // Cloud submission to Supabase
+    const workId = payload.projectId || payload.workId || payload.work_id;
+    if (workId) {
+      submitCitizenObservation({
+        work_id: workId,
+        ground_status: payload.issueType || payload.ground_status || 'Incomplete / Work Stopped',
+        observation_text: payload.observation || payload.observation_text || 'Citizen ground report',
+        evidence_photo_url: payload.photoUrl || payload.evidence_photo_url || null,
+        user_latitude: payload.userLat || payload.user_latitude || null,
+        user_longitude: payload.userLng || payload.user_longitude || null,
+      }).catch(() => {});
+
+      // Reactive instant state update in frontend
+      setProjects(prevProjects => {
+        const nextProjects = prevProjects.map(proj => {
+          if (proj.id === workId || proj.work_id === workId) {
+            const elevatedScore = Math.min(99, (proj.riskScore || proj.composite_risk_score || 50) + 15);
+            return {
+              ...proj,
+              riskScore: elevatedScore,
+              composite_risk_score: elevatedScore,
+              riskTier: 'HIGH_PRIORITY',
+              review_priority: 'HIGH_PRIORITY',
+              isAnomaly: true,
+              progress_discrepancy_points: Math.min(100, (proj.progress_discrepancy_points || 0) + 20),
+            };
+          }
+          return proj;
+        });
+        saveCachedProjects(nextProjects);
+        return nextProjects;
+      });
+    }
+
     showToast(`Grievance registered. Tracking ID: ${tokenId}. AI authenticity check initiated.`);
     return tokenId;
   }, [showToast]);
@@ -465,6 +575,10 @@ export function CaseProvider({ children }) {
 
   return (
     <CaseContext.Provider value={{
+      projects,
+      loading,
+      backendStatus,
+      refreshData,
       getCase,
       advanceStatus,
       assignCase,

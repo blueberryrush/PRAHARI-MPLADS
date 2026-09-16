@@ -16,6 +16,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import CalibrationToast from './components/CalibrationToast';
+import AIChatbot from './components/common/AIChatbot';
 
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
@@ -65,10 +66,14 @@ function AppLayout() {
     '/official/risk': t('nav_risk'),
     '/official/investigation': t('nav_investigation'),
     '/official/investigations': t('nav_investigation'),
+    '/investigation': t('nav_investigation'),
+    '/investigations': t('nav_investigation'),
 
     '/citizen': t('nav_citizen'),
     '/citizen/projects': t('nav_projects'),
 
+    '/dashboard': t('nav_dashboard'),
+    '/command': t('nav_dashboard'),
     '/official/dashboard': t('nav_dashboard'),
     '/official/financial': t('nav_financial'),
     '/official/duplicate': t('nav_duplicate'),
@@ -85,8 +90,14 @@ function AppLayout() {
     titles[location.pathname] ||
     (location.pathname.startsWith('/official/risk') || location.pathname.startsWith('/citizen/project')
       ? t('nav_risk')
-      : location.pathname.startsWith('/official/investigation') || location.pathname.startsWith('/official/investigations')
+      : location.pathname.startsWith('/official/investigation') ||
+        location.pathname.startsWith('/official/investigations') ||
+        location.pathname.startsWith('/investigation') ||
+        location.pathname.startsWith('/investigations') ||
+        location.pathname.startsWith('/cases')
       ? t('nav_investigation')
+      : location.pathname.startsWith('/dashboard') || location.pathname.startsWith('/command')
+      ? t('nav_dashboard')
       : undefined);
 
   return (
@@ -102,13 +113,13 @@ function AppLayout() {
         <Routes>
 
           {/* =========================================
-              CITIZEN PORTAL
+              CITIZEN PORTAL (Protected Login Gate)
           ========================================= */}
 
           <Route
             path="/citizen"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute requireAuth={true} redirectTo="/?auth=citizen">
                 <CitizenDashboard />
               </ProtectedRoute>
             }
@@ -117,228 +128,199 @@ function AppLayout() {
           <Route
             path="/citizen/projects"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute requireAuth={true} redirectTo="/?auth=citizen">
                 <ProjectExplorer />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/citizen/project/:id"
+            element={
+              <ProtectedRoute requireAuth={true} redirectTo="/?auth=citizen">
+                <RiskProfile />
               </ProtectedRoute>
             }
           />
 
 
           {/* =========================================
-              OFFICIAL PORTAL
+              COMMAND CENTRE / OFFICIAL PORTAL
           ========================================= */}
 
-          {/* Command Centre
-              Accessible to every official role */}
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute requireOfficial allowedPortal="COMMAND_CENTER" redirectTo="/?auth=command">
+                <OfficialDashboard />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/command"
+            element={
+              <ProtectedRoute requireOfficial allowedPortal="COMMAND_CENTER" redirectTo="/?auth=command">
+                <OfficialDashboard />
+              </ProtectedRoute>
+            }
+          />
+
           <Route
             path="/official/dashboard"
             element={
-              <ProtectedRoute
-                requireOfficial
-                allowedRoles={[
-                  'ministry',
-                  'state_nodal',
-                  'district_authority',
-                  'mp',
-                ]}
-              >
+              <ProtectedRoute requireOfficial allowedPortal="COMMAND_CENTER" redirectTo="/?auth=command">
                 <OfficialDashboard />
               </ProtectedRoute>
             }
           />
 
 
-          {/* Risk Profile & Project Intelligence
-              Accessible to authorities and citizens for project transparency */}
+          {/* =========================================
+              INVESTIGATION CENTRE / CASE DESK
+          ========================================= */}
+
           <Route
-            path="/official/risk/:id"
+            path="/investigation"
             element={
-              <ProtectedRoute
-                allowedRoles={[
-                  'ministry',
-                  'state_nodal',
-                  'district_authority',
-                  'mp',
-                  'investigator',
-                  'citizen',
-                ]}
-              >
-                <RiskProfile />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/citizen/project/:id"
-            element={
-              <ProtectedRoute
-                allowedRoles={[
-                  'citizen',
-                  'ministry',
-                  'state_nodal',
-                  'district_authority',
-                  'mp',
-                  'investigator',
-                ]}
-              >
-                <RiskProfile />
+              <ProtectedRoute requireOfficial allowedPortal="INVESTIGATION_CENTER" redirectTo="/?auth=investigation">
+                <InvestigationCentre />
               </ProtectedRoute>
             }
           />
 
+          <Route
+            path="/investigation/:id"
+            element={
+              <ProtectedRoute requireOfficial allowedPortal="INVESTIGATION_CENTER" redirectTo="/?auth=investigation">
+                <InvestigationCentre />
+              </ProtectedRoute>
+            }
+          />
 
-          {/* Investigation Centre
-              Investigation actions are limited to
-              Ministry / State / District authorities and Field Investigators */}
+          <Route
+            path="/investigations"
+            element={
+              <ProtectedRoute requireOfficial allowedPortal="INVESTIGATION_CENTER" redirectTo="/?auth=investigation">
+                <InvestigationCentre />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/investigations/:id"
+            element={
+              <ProtectedRoute requireOfficial allowedPortal="INVESTIGATION_CENTER" redirectTo="/?auth=investigation">
+                <InvestigationCentre />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/cases/:id"
+            element={
+              <ProtectedRoute requireOfficial allowedPortal="INVESTIGATION_CENTER" redirectTo="/?auth=investigation">
+                <InvestigationCentre />
+              </ProtectedRoute>
+            }
+          />
+
           <Route
             path="/official/investigation"
             element={
-              <ProtectedRoute
-                requireOfficial
-                allowedRoles={[
-                  'ministry',
-                  'state_nodal',
-                  'district_authority',
-                  'investigator',
-                ]}
-              >
-                <InvestigationCentre />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/official/investigation/:id"
-            element={
-              <ProtectedRoute
-                requireOfficial
-                allowedRoles={[
-                  'ministry',
-                  'state_nodal',
-                  'district_authority',
-                  'investigator',
-                ]}
-              >
-                <InvestigationCentre />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/official/investigations/:id"
-            element={
-              <ProtectedRoute
-                requireOfficial
-                allowedRoles={[
-                  'ministry',
-                  'state_nodal',
-                  'district_authority',
-                  'investigator',
-                ]}
-              >
-                <InvestigationCentre />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/official/investigations"
-            element={
-              <ProtectedRoute
-                requireOfficial
-                allowedRoles={[
-                  'ministry',
-                  'state_nodal',
-                  'district_authority',
-                  'investigator',
-                ]}
-              >
+              <ProtectedRoute requireOfficial allowedPortal="INVESTIGATION_CENTER" redirectTo="/?auth=investigation">
                 <InvestigationCentre />
               </ProtectedRoute>
             }
           />
 
+          <Route
+            path="/official/investigation/:id"
+            element={
+              <ProtectedRoute requireOfficial allowedPortal="INVESTIGATION_CENTER" redirectTo="/?auth=investigation">
+                <InvestigationCentre />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/official/investigations"
+            element={
+              <ProtectedRoute requireOfficial allowedPortal="INVESTIGATION_CENTER" redirectTo="/?auth=investigation">
+                <InvestigationCentre />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/official/investigations/:id"
+            element={
+              <ProtectedRoute requireOfficial allowedPortal="INVESTIGATION_CENTER" redirectTo="/?auth=investigation">
+                <InvestigationCentre />
+              </ProtectedRoute>
+            }
+          />
+
+
+          {/* =========================================
+              OFFICIAL RISK & ANALYTICS MODULES
+          ========================================= */}
+
+          {/* Risk Profile & Project Intelligence */}
+          <Route
+            path="/official/risk/:id"
+            element={
+              <ProtectedRoute requireOfficial>
+                <RiskProfile />
+              </ProtectedRoute>
+            }
+          />
 
           {/* Financial Review */}
           <Route
             path="/official/financial"
             element={
-              <ProtectedRoute
-                requireOfficial
-                allowedRoles={[
-                  'ministry',
-                  'state_nodal',
-                  'district_authority',
-                ]}
-              >
+              <ProtectedRoute requireOfficial allowedPortal="COMMAND_CENTER">
                 <FinancialVerification />
               </ProtectedRoute>
             }
           />
 
-
           {/* Duplicate Verification */}
           <Route
             path="/official/duplicate"
             element={
-              <ProtectedRoute
-                requireOfficial
-                allowedRoles={[
-                  'ministry',
-                  'state_nodal',
-                  'district_authority',
-                ]}
-              >
+              <ProtectedRoute requireOfficial allowedPortal="COMMAND_CENTER">
                 <DuplicateVerification />
               </ProtectedRoute>
             }
           />
 
-
           {/* Agency Risk */}
           <Route
             path="/official/agency"
             element={
-              <ProtectedRoute
-                requireOfficial
-                allowedRoles={[
-                  'ministry',
-                  'state_nodal',
-                  'district_authority',
-                ]}
-              >
+              <ProtectedRoute requireOfficial allowedPortal="COMMAND_CENTER">
                 <AgencyRiskProfile />
               </ProtectedRoute>
             }
           />
 
-
           {/* Comparative Analysis */}
           <Route
             path="/official/comparison"
             element={
-              <ProtectedRoute
-                requireOfficial
-                allowedRoles={[
-                  'ministry',
-                  'state_nodal',
-                  'district_authority',
-                ]}
-              >
+              <ProtectedRoute requireOfficial allowedPortal="COMMAND_CENTER">
                 <ComparisonRiskAnalysis />
               </ProtectedRoute>
             }
           />
 
-
           {/* Predictive Bottleneck */}
           <Route
             path="/official/bottleneck"
             element={
-              <ProtectedRoute
-                requireOfficial
-                allowedRoles={[
-                  'ministry',
-                  'state_nodal',
-                  'district_authority',
-                ]}
-              >
+              <ProtectedRoute requireOfficial allowedPortal="COMMAND_CENTER">
                 <PredictiveBottleneck />
               </ProtectedRoute>
             }
@@ -375,6 +357,7 @@ function App() {
           <LanguageProvider>
             <AuthProvider>
               <AppLayout />
+              <AIChatbot />
             </AuthProvider>
           </LanguageProvider>
         </CaseProvider>

@@ -1,29 +1,45 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { projects, states, sectors } from '../../data/mockData';
+import { useCaseContext } from '../../contexts/CaseContext';
+import { projects as mockProjects, states, sectors } from '../../data/mockData';
 import { StatusBadge } from '../../components/RiskBadge';
 import { Search, Download, X } from 'lucide-react';
 
 export default function ProjectExplorer() {
   const { t, lang } = useLanguage();
+  const { projects: cloudProjects } = useCaseContext();
   const [search, setSearch] = useState('');
   const [stateFilter, setStateFilter] = useState('');
   const [sectorFilter, setSectorFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [selectedProject, setSelectedProject] = useState(null);
 
-  const filtered = projects.filter(p => {
-    const match = !search || p.name.toLowerCase().includes(search.toLowerCase()) || p.id.toLowerCase().includes(search.toLowerCase());
-    const st = !stateFilter || p.state === stateFilter;
-    const sec = !sectorFilter || p.sector === sectorFilter;
-    const stat = !statusFilter || p.status === statusFilter;
+  const activeProjects = useMemo(() => {
+    return cloudProjects && cloudProjects.length > 0 ? cloudProjects : mockProjects;
+  }, [cloudProjects]);
+
+  const filtered = activeProjects.filter(p => {
+    const s = search.trim().toLowerCase();
+    const match = !s || (p.name || p.work_name || '').toLowerCase().includes(s) || (p.id || p.work_id || '').toLowerCase().includes(s);
+    const st = !stateFilter || (p.state || '').toLowerCase() === stateFilter.toLowerCase();
+    const sec = !sectorFilter || (p.sector || p.category || '').toLowerCase() === sectorFilter.toLowerCase();
+    const stat = !statusFilter || (p.status || p.audit_status || '').toLowerCase() === statusFilter.toLowerCase();
     return match && st && sec && stat;
   });
 
   const exportCSV = () => {
-    const headers = 'ID,Name,Sector,State,District,Constituency,Sanctioned,Spent,Status,Physical Progress\n';
-    const rows = filtered.map(p => `${p.id},${p.name},${p.sector},${p.state},${p.district},${p.constituency},${p.sanctionedAmount},${p.spentAmount},${p.status},${p.physicalProgress}%`).join('\n');
+    const headers = 'ID,Name,Sector,State,District,Constituency,Sanctioned (Lakhs),Spent (Lakhs),Status,Physical Progress\n';
+    const rows = filtered.map(p => {
+      const pId = p.id || p.work_id;
+      const pName = p.name || p.work_name;
+      const pSec = p.sector || p.category;
+      const pSanc = p.sanctioned_amount_lakhs != null ? p.sanctioned_amount_lakhs : ((p.sanctionedAmount || 0) / 100000).toFixed(1);
+      const pSpent = p.expenditure_lakhs != null ? p.expenditure_lakhs : ((p.spentAmount || 0) / 100000).toFixed(1);
+      const pProg = p.physicalProgress ?? p.reported_progress_pct ?? 0;
+      const pStat = p.audit_status || p.status || 'Monitored';
+      return `${pId},"${pName}",${pSec},${p.state},${p.district},${p.constituency},${pSanc},${pSpent},${pStat},${pProg}%`;
+    }).join('\n');
     const blob = new Blob([headers + rows], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url; a.download = 'mplads_projects.csv'; a.click();
@@ -81,75 +97,95 @@ export default function ProjectExplorer() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map(p => (
-                <tr key={p.id}>
-                  <td style={{ fontFamily: 'var(--font-heading)', fontWeight: 600, color: 'var(--primary)' }}>{p.id}</td>
-                  <td style={{ maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>{p.name}</td>
-                  <td><span className="badge badge-info" style={{ fontSize: '12px', fontWeight: 500 }}>{p.sector}</span></td>
-                  <td>{p.constituency}</td>
-                  <td>₹{(p.sanctionedAmount / 100000).toFixed(1)}L</td>
-                  <td style={{ color: p.spentAmount > p.sanctionedAmount * 1.2 ? 'var(--coral)' : 'inherit', fontWeight: p.spentAmount > p.sanctionedAmount * 1.2 ? 700 : 400 }}>₹{(p.spentAmount / 100000).toFixed(1)}L</td>
-                  <td>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <div className="progress-bar" style={{ width: 60 }}>
-                        <div className={`progress-fill ${p.physicalProgress === 100 ? 'green' : p.physicalProgress > 60 ? 'blue' : p.status === 'delayed' ? 'red' : 'yellow'}`} style={{ width: `${p.physicalProgress}%` }}></div>
+              {filtered.map(p => {
+                const pId = p.id || p.work_id;
+                const pName = p.name || p.work_name;
+                const pSec = p.sector || p.category;
+                const sancLakhs = p.sanctioned_amount_lakhs != null ? Number(p.sanctioned_amount_lakhs) : (p.sanctionedAmount || 0) / 100000;
+                const spentLakhs = p.expenditure_lakhs != null ? Number(p.expenditure_lakhs) : (p.spentAmount || 0) / 100000;
+                const progPct = p.physicalProgress ?? p.reported_progress_pct ?? 0;
+                const status = p.audit_status || p.status || 'in_progress';
+
+                return (
+                  <tr key={pId}>
+                    <td style={{ fontFamily: 'var(--font-heading)', fontWeight: 600, color: 'var(--primary)' }}>{pId}</td>
+                    <td style={{ maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>{pName}</td>
+                    <td><span className="badge badge-info" style={{ fontSize: '12px', fontWeight: 500 }}>{pSec}</span></td>
+                    <td>{p.constituency || p.district}</td>
+                    <td>₹{sancLakhs.toFixed(1)}L</td>
+                    <td style={{ color: spentLakhs > sancLakhs * 1.2 ? 'var(--coral)' : 'inherit', fontWeight: spentLakhs > sancLakhs * 1.2 ? 700 : 400 }}>₹{spentLakhs.toFixed(1)}L</td>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div className="progress-bar" style={{ width: 60 }}>
+                          <div className={`progress-fill ${progPct === 100 ? 'green' : progPct > 60 ? 'blue' : status === 'delayed' ? 'red' : 'yellow'}`} style={{ width: `${progPct}%` }}></div>
+                        </div>
+                        <span style={{ fontSize: '12px', fontWeight: 600 }}>{progPct}%</span>
                       </div>
-                      <span style={{ fontSize: '12px', fontWeight: 600 }}>{p.physicalProgress}%</span>
-                    </div>
-                  </td>
-                  <td><StatusBadge status={p.status} /></td>
-                  <td><button className="btn btn-ghost btn-sm" onClick={() => setSelectedProject(p)}>{t('common_view_details')}</button></td>
-                </tr>
-              ))}
+                    </td>
+                    <td><StatusBadge status={status} /></td>
+                    <td><button className="btn btn-ghost btn-sm" onClick={() => setSelectedProject(p)}>{t('common_view_details')}</button></td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       </motion.div>
 
       {/* Detail Modal */}
-      {selectedProject && (
-        <div className="modal-overlay" onClick={() => setSelectedProject(null)}>
-          <motion.div className="modal" onClick={e => e.stopPropagation()} initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}>
-            <div className="modal-header">
-              <h2>{selectedProject.name}</h2>
-              <button className="btn-icon" onClick={() => setSelectedProject(null)}><X size={18} /></button>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-              {[
-                { l: 'ID', v: selectedProject.id },
-                { l: t('common_sector'), v: selectedProject.sector },
-                { l: t('common_state'), v: selectedProject.state },
-                { l: t('common_constituency'), v: selectedProject.constituency },
-                { l: t('fin_sanctioned'), v: `₹${(selectedProject.sanctionedAmount / 100000).toFixed(1)}L` },
-                { l: t('fin_spent'), v: `₹${(selectedProject.spentAmount / 100000).toFixed(1)}L` },
-                { l: lang === 'hi' ? 'शुरू' : 'Start Date', v: selectedProject.startDate },
-                { l: lang === 'hi' ? 'अपेक्षित' : 'Expected', v: selectedProject.expectedCompletion },
-              ].map((item, i) => (
-                <div key={i} style={{ padding: '8px 0', borderBottom: '1px solid var(--border-light)' }}>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', fontWeight: 600, textTransform: 'uppercase' }}>{item.l}</div>
-                  <div style={{ fontWeight: 600 }}>{item.v}</div>
+      {selectedProject && (() => {
+        const pId = selectedProject.id || selectedProject.work_id;
+        const pName = selectedProject.name || selectedProject.work_name;
+        const pSec = selectedProject.sector || selectedProject.category;
+        const sancLakhs = selectedProject.sanctioned_amount_lakhs != null ? Number(selectedProject.sanctioned_amount_lakhs) : (selectedProject.sanctionedAmount || 0) / 100000;
+        const spentLakhs = selectedProject.expenditure_lakhs != null ? Number(selectedProject.expenditure_lakhs) : (selectedProject.spentAmount || 0) / 100000;
+        const progPct = selectedProject.physicalProgress ?? selectedProject.reported_progress_pct ?? 0;
+        const status = selectedProject.audit_status || selectedProject.status || 'in_progress';
+
+        return (
+          <div className="modal-overlay" onClick={() => setSelectedProject(null)}>
+            <motion.div className="modal" onClick={e => e.stopPropagation()} initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}>
+              <div className="modal-header">
+                <h2>{pName}</h2>
+                <button className="btn-icon" onClick={() => setSelectedProject(null)}><X size={18} /></button>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                {[
+                  { l: 'ID', v: pId },
+                  { l: t('common_sector'), v: pSec },
+                  { l: t('common_state'), v: selectedProject.state },
+                  { l: t('common_constituency'), v: selectedProject.constituency || selectedProject.district },
+                  { l: t('fin_sanctioned'), v: `₹${sancLakhs.toFixed(1)}L` },
+                  { l: t('fin_spent'), v: `₹${spentLakhs.toFixed(1)}L` },
+                  { l: lang === 'hi' ? 'शुरू' : 'Start Date', v: selectedProject.startDate || '2024-01-15' },
+                  { l: lang === 'hi' ? 'अपेक्षित' : 'Expected', v: selectedProject.expectedCompletion || '2025-03-31' },
+                ].map((item, i) => (
+                  <div key={i} style={{ padding: '8px 0', borderBottom: '1px solid var(--border-light)' }}>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', fontWeight: 600, textTransform: 'uppercase' }}>{item.l}</div>
+                    <div style={{ fontWeight: 600 }}>{item.v}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ marginTop: 16 }}>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>{lang === 'hi' ? 'विवरण' : 'Description'}</div>
+                <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>{selectedProject.description || 'Public development works monitored under the Members of Parliament Local Area Development Scheme (MPLADS).'}</p>
+              </div>
+              <div style={{ marginTop: 16 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>{t('fin_physical_progress')}</span>
+                  <span style={{ fontSize: '0.8rem', fontWeight: 700 }}>{progPct}%</span>
                 </div>
-              ))}
-            </div>
-            <div style={{ marginTop: 16 }}>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 }}>{lang === 'hi' ? 'विवरण' : 'Description'}</div>
-              <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>{selectedProject.description}</p>
-            </div>
-            <div style={{ marginTop: 16 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>{t('fin_physical_progress')}</span>
-                <span style={{ fontSize: '0.8rem', fontWeight: 700 }}>{selectedProject.physicalProgress}%</span>
+                <div className="progress-bar" style={{ height: 12 }}>
+                  <div className={`progress-fill ${progPct === 100 ? 'green' : 'blue'}`} style={{ width: `${progPct}%` }}></div>
+                </div>
               </div>
-              <div className="progress-bar" style={{ height: 12 }}>
-                <div className={`progress-fill ${selectedProject.physicalProgress === 100 ? 'green' : 'blue'}`} style={{ width: `${selectedProject.physicalProgress}%` }}></div>
+              <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
+                <StatusBadge status={status} />
               </div>
-            </div>
-            <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
-              <StatusBadge status={selectedProject.status} />
-            </div>
-          </motion.div>
-        </div>
-      )}
+            </motion.div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

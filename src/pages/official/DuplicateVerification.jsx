@@ -1,7 +1,8 @@
-﻿import { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { projects } from '../../data/mockData';
+import { useCaseContext } from '../../contexts/CaseContext';
+import { projects as fallbackProjects } from '../../data/mockData';
 import { detectDuplicates } from '../../data/aiEngine';
 import AnimatedCounter from '../../components/AnimatedCounter';
 import { Copy, Search, CheckCircle2, AlertTriangle, Globe, Percent, ArrowRight, ShieldCheck, MapPin } from 'lucide-react';
@@ -11,8 +12,13 @@ const stagger = { visible: { transition: { staggerChildren: 0.08 } } };
 
 export default function DuplicateVerification() {
   const { t, lang } = useLanguage();
+  const { projects: cloudProjects } = useCaseContext();
+  const activeProjects = useMemo(() => {
+    return (cloudProjects && cloudProjects.length > 0) ? cloudProjects : fallbackProjects;
+  }, [cloudProjects]);
+
   const hi = lang === 'hi';
-  const duplicates = useMemo(() => detectDuplicates(projects, 0.55), []);
+  const duplicates = useMemo(() => detectDuplicates(activeProjects, 0.55), [activeProjects]);
   const [actions, setActions] = useState({});
 
   const crossConstituency = duplicates.filter(d => d.isCrossConstituency);

@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Bell, Search, Globe2, X, ArrowRight, CheckCheck, Sun, Moon } from 'lucide-react';
+import { Bell, Search, Globe2, X, ArrowRight, CheckCheck, Sun, Moon, ArrowLeft } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -87,6 +87,8 @@ export default function Header({ title }) {
 
   const workspace = location.pathname.startsWith('/citizen')
     ? t('header_workspace_citizen')
+    : location.pathname.startsWith('/investigation') || location.pathname.startsWith('/cases') || location.pathname.startsWith('/official/investigation')
+    ? t('nav_investigation')
     : t('header_workspace_official');
 
   return (
@@ -94,6 +96,15 @@ export default function Header({ title }) {
       <div className="topbar-title">
         <span className="eyebrow">{workspace}</span>
         <h1>{title || workspace}</h1>
+        <button
+          type="button"
+          className="return-home-btn"
+          onClick={() => navigate('/')}
+          style={{ marginTop: 8 }}
+        >
+          <ArrowLeft size={14} />
+          {lang === 'hi' ? 'होम पर लौटें' : 'Return Home'}
+        </button>
       </div>
       <div className="topbar-actions">
         {/* Global Search Bar with Live Filter Dropdown */}
@@ -266,10 +277,10 @@ export default function Header({ title }) {
         </div>
 
         <div className="profile-chip">
-          <div className="avatar">{user?.name?.charAt(0) || 'U'}</div>
+          <div className="avatar">{user?.name?.charAt(0) || (location.pathname.startsWith('/citizen') ? 'C' : 'P')}</div>
           <div className="profile-copy">
-            <strong>{user?.name || 'Official'}</strong>
-            <span>{user?.role?.replaceAll('_', ' ') || 'Official'}</span>
+            <strong>{user?.name || (location.pathname.startsWith('/citizen') ? (lang === 'hi' ? 'नागरिक दृश्य' : 'Citizen Access') : (lang === 'hi' ? 'डेमो अवलोकन' : 'Demo Official'))}</strong>
+            <span>{user?.role?.replaceAll('_', ' ') || (location.pathname.startsWith('/citizen') ? 'Public' : 'Evaluator')}</span>
           </div>
         </div>
       </div>

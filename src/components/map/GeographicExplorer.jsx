@@ -240,9 +240,9 @@ export default function GeographicExplorer({
   const borderColor = isDark ? '#292524' : '#e7e5e4';
   const textPrimary = isDark ? '#f5f5f4' : '#1c1917';
   const textSecondary = isDark ? '#a8a29e' : '#57534e';
-  const shapeFill = isDark ? '#262320' : '#e7ece6';
-  const shapeHoverFill = isDark ? '#38332c' : '#c6d8cb';
-  const shapeStroke = isDark ? '#44403c' : '#ffffff';
+  const shapeFill = isDark ? '#1E352B' : '#E7EFE9';
+  const shapeHoverFill = isDark ? '#2E4A3D' : '#D1E7DD';
+  const shapeStroke = isDark ? '#2D4F40' : '#CBD5E1';
 
   return (
     <div

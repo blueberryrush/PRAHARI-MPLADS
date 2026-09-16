@@ -1,822 +1,1291 @@
-import { useMemo, useState } from 'react';
-import {
-  ArrowRight,
-  ArrowUpDown,
-  Clock3,
-  Eye,
-  MapPin,
-  SearchCheck,
-  ShieldAlert,
-  Sparkles,
-  TrendingUp,
-  UsersRound,
-  X,
-  CheckCircle2,
-  FileText,
-} from 'lucide-react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { projects, agencies } from '../../data/mockData';
+import {
+  ShieldAlert,
+  AlertTriangle,
+  CheckCircle2,
+  MapPin,
+  Search,
+  X,
+  ArrowUpDown,
+  Clock,
+  TrendingUp,
+  Database,
+  RefreshCw,
+  Download,
+  FileText,
+  Camera,
+  MessageSquare,
+  Eye,
+  Compass,
+  Sparkles,
+  Filter,
+  ChevronRight,
+  Activity,
+  Copy,
+  Info,
+  Check,
+  AlertCircle,
+  DollarSign
+} from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { calculateRiskScore } from '../../data/aiEngine';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useCaseContext } from '../../contexts/CaseContext';
-import SpeakerButton from '../../components/SpeakerButton';
 import CivicMap from '../../components/map/CivicMap';
+import SpeakerButton from '../../components/SpeakerButton';
 import InvestigationAssignmentModal from '../../components/investigation/InvestigationAssignmentModal';
+import { exportProjectsToCSV, generateEvidenceSummaryText } from '../../utils/reportExport';
+import { calculateRiskScore } from '../../data/aiEngine';
+import { projects as mockProjects, agencies, states } from '../../data/mockData';
 
-const riskLabel = (s, t) =>
-  s >= 70 ? t('risk_high_priority') : s >= 50 ? t('risk_requires_verification') : t('risk_stable');
+// ─── Primary Signal Resolver ──────────────────────────────────────────────────
+function resolvePrimarySignal(p, finProg, physProg) {
+  const score = p.composite_risk_score != null ? p.composite_risk_score : (p.riskScore || p.risk?.score || 0);
+  const sanctioned = p.sanctionedAmount || (p.sanctioned_amount_lakhs ? p.sanctioned_amount_lakhs * 100000 : 0);
+  const spent = p.spentAmount || (p.expenditure_lakhs ? p.expenditure_lakhs * 100000 : 0);
 
-// ─── Signal Mix Intelligence Card ────────────────────────────────────────────
-function SignalMixCard({ signals, t }) {
-  return (
-    <section className="panel distribution-panel">
-      <div className="panel-head">
-        <div>
-          <span className="eyebrow">{t('dash_signal_eyebrow')}</span>
-          <h3>{t('dash_signal_title')}</h3>
-        </div>
-        <Eye size={17} />
-      </div>
-
-      {signals.map((sig) => (
-        <div className="bar-item" key={sig.key}>
-          <div className="signal-row-head">
-            <span>
-              <b>{t(sig.nameKey)}</b>
-              <span className={`severity-chip ${sig.severity}`}>{t(`signal_${sig.severity}`)}</span>
-            </span>
-            <span className="contribution-badge">{sig.pct}%</span>
-          </div>
-          <p className="signal-finding">{t(sig.findingKey)}</p>
-          <div className="signal-micro-bar">
-            <i className={sig.color} style={{ width: `${sig.pct}%` }} />
-          </div>
-        </div>
-      ))}
-
-      <p className="signal-mix-caption">
-        <em>{t('disclaimer_risk_not_fraud')}</em>
-      </p>
-    </section>
-  );
+  if (finProg > physProg + 35) return { key: 'financial_mismatch', label: 'Financial–Physical Mismatch', severity: 'high', icon: DollarSign };
+  if (spent > sanctioned * 1.15) return { key: 'cost_anomaly', label: 'Cost Overrun Anomaly', severity: 'high', icon: TrendingUp };
+  if (p.status === 'delayed' || (p.temporal_slippage_signal && !p.temporal_slippage_signal.includes('ON_SCHEDULE'))) {
+    return { key: 'timeline_delay', label: 'Gestation Timeline Delay', severity: 'medium', icon: Clock };
+  }
+  if (p.id === 'PRJ002' || (p.spatial_clustering_signal && !p.spatial_clustering_signal.includes('CLEAR'))) {
+    return { key: 'spatial_anomaly', label: 'Geospatial Duplicate Overlap', severity: 'medium', icon: MapPin };
+  }
+  if (p.progress_discrepancy_points && p.progress_discrepancy_points > 15) {
+    return { key: 'visual_mismatch', label: 'Visual Progress Discrepancy', severity: 'high', icon: Camera };
+  }
+  if (p.isAnomaly || score >= 70) {
+    return { key: 'composite_anomaly', label: 'Multi-Signal Anomaly Flagged', severity: 'high', icon: ShieldAlert };
+  }
+  return { key: 'on_track', label: 'Milestones On Track', severity: 'low', icon: CheckCircle2 };
 }
 
-// ─── Main Component ───────────────────────────────────────────────────────────
+// ─── Main Official Command Centre ─────────────────────────────────────────────
 export default function OfficialDashboard() {
   const navigate = useNavigate();
   const { user, getRoleLabel } = useAuth();
-  const { t, lang } = useLanguage();
-  const { getCase, assignCase } = useCaseContext();
-  const [filter, setFilter] = useState('all');
-  const [activeTileFilter, setActiveTileFilter] = useState(null); // 'works' | 'priority' | 'verification' | 'resolved' | 'exposure'
-  const [activeActionFilter, setActiveActionFilter] = useState(null); // 'high_reviews' | 'field_verif' | 'awaiting_evidence'
-  const [sortBy, setSortBy] = useState('score'); // 'score' | 'recent'
-  const [query, setQuery] = useState('');
-  const [focusedId, setFocusedId] = useState(null);
+  const { lang } = useLanguage();
+  const hi = lang === 'hi';
+
+  const {
+    projects: cloudProjects,
+    loading: isSyncing,
+    backendStatus,
+    refreshData,
+    getCase,
+    assignCase,
+    complaints
+  } = useCaseContext();
+
+  // ── State Filters & Selection ──
+  const [selectedState, setSelectedState] = useState('');
+  const [selectedDistrict, setSelectedDistrict] = useState('');
+  const [selectedSector, setSelectedSector] = useState('all');
+  const [activeKpiFilter, setActiveKpiFilter] = useState(null); // 'high' | 'medium' | 'active' | 'verification' | 'observations'
+  const [activeSignalFilter, setActiveSignalFilter] = useState(null); // signal key
+  const [activeDelayFilter, setActiveDelayFilter] = useState(null); // 'critical' | 'delayed' | 'at_risk' | 'on_track'
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState('score_desc'); // 'score_desc' | 'score_asc' | 'spent_desc' | 'recent'
+  const [selectedProjectId, setSelectedProjectId] = useState('PRJ002');
+  const [lastSyncTime, setLastSyncTime] = useState(() => new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+
+  // Modals
+  const [docketModalProject, setDocketModalProject] = useState(null);
+  const [docketCopied, setDocketCopied] = useState(false);
   const [dispatchModalProject, setDispatchModalProject] = useState(null);
 
-  const scope =
-    user?.role === 'ministry' ? 'India' :
-    user?.role === 'state_nodal' ? (user?.state || 'Uttar Pradesh') :
-    user?.role === 'mp' ? `${user?.constituency || 'Varanasi'} Constituency` :
-    (user?.district || 'Varanasi District');
-
-  const authorityLabel = getRoleLabel(user?.role || 'district_authority');
-
-  const scopedProjects = useMemo(() => projects.filter(p => {
-    if (user?.role === 'ministry') return true;
-    if (user?.role === 'state_nodal') return p.state === (user?.state || 'Uttar Pradesh');
-    if (user?.role === 'mp') return p.constituency === (user?.constituency || 'Varanasi');
-    return p.district === (user?.district || 'Varanasi');
-  }), [user]);
-
+  // Agency Map
   const agencyMap = useMemo(() => {
     const map = {};
     agencies.forEach(a => { map[a.id] = a.name; });
     return map;
   }, []);
 
-  const scored = useMemo(() =>
-    scopedProjects
-      .map(p => ({ ...p, risk: calculateRiskScore(p) }))
-      .sort((a, b) => {
-        if (sortBy === 'recent') {
-          const dateA = new Date(a.sanctionDate || a.startDate || '2024-01-01').getTime();
-          const dateB = new Date(b.sanctionDate || b.startDate || '2024-01-01').getTime();
-          return dateB - dateA;
-        }
-        return b.risk.score - a.risk.score;
-      }),
-    [scopedProjects, sortBy]
-  );
+  // ── 1. Base Active Project Pool ──
+  const activePool = useMemo(() => {
+    return (cloudProjects && cloudProjects.length > 0) ? cloudProjects : mockProjects;
+  }, [cloudProjects]);
 
-  const visible = useMemo(() => {
-    return scored.filter(p => {
-      // 1. Metric tile filter
-      if (activeTileFilter === 'priority' && p.risk.score < 70) return false;
-      if (activeTileFilter === 'verification' && !( (p.risk.score >= 50 && p.risk.score < 70) || p.status === 'delayed' )) return false;
-      if (activeTileFilter === 'resolved' && p.status !== 'completed') return false;
-      if (activeTileFilter === 'exposure' && !(p.spentAmount > p.sanctionedAmount * 1.1 || p.isAnomaly)) return false;
-
-      // 2. Action queue filter
-      if (activeActionFilter === 'high_reviews' && p.risk.score < 70) return false;
-      if (activeActionFilter === 'field_verif') {
-        const caseState = getCase(p.id);
-        const isFieldDispatched = caseState?.status === 'UNDER_FIELD_INVESTIGATION' || caseState?.status === 'Field Verification Dispatched';
-        if (!(p.risk.score >= 70 || p.status === 'delayed' || isFieldDispatched)) return false;
+  // ── 2. Jurisdiction-Scoped Projects ──
+  const scopedProjects = useMemo(() => {
+    return activePool.filter(p => {
+      // Role scope
+      if (user?.role === 'state_nodal' && p.state && user?.state) {
+        if (p.state.toLowerCase() !== user.state.toLowerCase()) return false;
+      } else if (user?.role === 'mp' && user?.constituency) {
+        const c = (p.constituency || p.block_constituency || '').toLowerCase();
+        if (c !== user.constituency.toLowerCase()) return false;
+      } else if (user?.role === 'district_authority' && user?.district) {
+        if ((p.district || '').toLowerCase() !== user.district.toLowerCase()) return false;
       }
-      if (activeActionFilter === 'awaiting_evidence' && !(p.physicalProgress < 50 || p.isAnomaly || p.status === 'delayed')) return false;
 
-      // 3. Category pill filter
-      if (filter === 'financial' && !(p.spentAmount > p.sanctionedAmount * 1.1)) return false;
-      if (filter === 'delay' && p.status !== 'delayed') return false;
-      if (filter === 'duplicate' && p.id !== 'PRJ002' && !p.sector) return false;
+      // Manual UI Drilldown filters
+      if (selectedState && (p.state || '').toLowerCase() !== selectedState.toLowerCase()) return false;
+      if (selectedDistrict && (p.district || '').toLowerCase() !== selectedDistrict.toLowerCase()) return false;
+      if (selectedSector !== 'all' && (p.sector || p.category || '').toLowerCase() !== selectedSector.toLowerCase()) return false;
 
-      // 4. Search query (title, case_id, district, constituency, agency, signal tags)
-      if (!query.trim()) return true;
-      const q = query.trim().toLowerCase();
-      const contractorName = (agencyMap[p.agency] || '').toLowerCase();
-      const signalTags = [
-        p.spentAmount > p.sanctionedAmount * 1.1 ? 'financial anomaly वित्तीय विसंगति cost overrun' : '',
-        p.status === 'delayed' ? 'delay delayed विलंब slow progress' : '',
-        p.id === 'PRJ002' ? 'spatial duplicate overlap दोहराव स्थानिक' : '',
-        p.isAnomaly ? 'anomaly anomaly-detected' : '',
-        p.sector || ''
-      ].join(' ').toLowerCase();
-
-      const searchable = `${p.id} ${p.name} ${p.district} ${p.constituency} ${contractorName} ${p.description || ''} ${signalTags}`.toLowerCase();
-      return searchable.includes(q);
+      return true;
     });
-  }, [scored, activeTileFilter, activeActionFilter, filter, query, agencyMap, getCase]);
+  }, [activePool, user, selectedState, selectedDistrict, selectedSector]);
 
-  const priority = scored.filter(p => p.risk.score >= 50).length;
-  const exposure = scored.filter(p => p.risk.score >= 50).reduce((s, p) => s + p.sanctionedAmount, 0);
+  // ── 3. Scored & Normalized Project List ──
+  const scoredProjects = useMemo(() => {
+    return scopedProjects.map(p => {
+      const computedRisk = calculateRiskScore(p);
+      const scoreVal = p.composite_risk_score != null ? Number(p.composite_risk_score) : (p.riskScore != null ? Number(p.riskScore) : computedRisk.score);
+      const sanctioned = p.sanctionedAmount || (p.sanctioned_amount_lakhs ? Number(p.sanctioned_amount_lakhs) * 100000 : 0);
+      const spent = p.spentAmount || (p.expenditure_lakhs ? Number(p.expenditure_lakhs) * 100000 : 0);
+      const physProg = p.physicalProgress ?? p.reported_progress_pct ?? 50;
+      const finProg = sanctioned > 0 ? Math.round((spent / sanctioned) * 100) : 0;
+      const primarySignal = resolvePrimarySignal(p, finProg, physProg);
+      const riskTier = scoreVal >= 70 ? 'HIGH' : scoreVal >= 40 ? 'MEDIUM' : 'LOW';
 
-  const actionHighCount = scored.filter(p => p.risk.score >= 70).length || 7;
-  const actionFieldCount = scored.filter(p => p.risk.score >= 70 || p.status === 'delayed').length || 6;
-  const actionEvidenceCount = scored.filter(p => p.physicalProgress < 50 || p.isAnomaly).length || 5;
+      return {
+        ...p,
+        id: p.id || p.work_id,
+        name: p.name || p.work_name,
+        sanctionedAmount: sanctioned,
+        spentAmount: spent,
+        physicalProgress: physProg,
+        financialProgress: finProg,
+        riskScore: scoreVal,
+        riskTier,
+        primarySignal,
+        risk: {
+          ...computedRisk,
+          score: scoreVal,
+          tier: riskTier
+        }
+      };
+    });
+  }, [scopedProjects]);
 
-  // ── Dynamic signal mix from top-risk project ──────────────────────────────
-  const top = scored[0];
-  const signals = useMemo(() => {
-    const finPct = top
-      ? Math.round(Math.max(0, (top.spentAmount / top.sanctionedAmount - 1) * 100))
-      : 0;
-    const delayCount = scored.filter(p => p.status === 'delayed').length;
+  // ── 4. Filtered Queue for Table ──
+  const filteredQueue = useMemo(() => {
+    return scoredProjects
+      .filter(p => {
+        const caseData = getCase(p.id);
+        const auditStatus = p.audit_status || caseData?.status || 'MONITORED_AUTO';
+
+        // KPI card filter
+        if (activeKpiFilter === 'high' && p.riskScore < 70 && p.review_priority !== 'HIGH_PRIORITY') return false;
+        if (activeKpiFilter === 'medium' && (p.riskScore < 40 || p.riskScore >= 70)) return false;
+        if (activeKpiFilter === 'active' && (p.work_status === 'Completed' || p.status === 'completed')) return false;
+        if (activeKpiFilter === 'verification') {
+          const isUnderVerif = ['QUEUED_FOR_FIELD_INSPECTION', 'UNDER_FIELD_INVESTIGATION', 'Field Verification Dispatched', 'Under Review'].includes(auditStatus) || p.riskScore >= 70;
+          if (!isUnderVerif) return false;
+        }
+        if (activeKpiFilter === 'observations') {
+          // Has matching citizen observation
+          const hasObs = (complaints || []).some(c => c.projectId === p.id || c.work_id === p.id);
+          if (!hasObs && !p.isAnomaly) return false;
+        }
+
+        // Signal filter
+        if (activeSignalFilter) {
+          if (activeSignalFilter === 'financial_mismatch' && !(p.financialProgress > p.physicalProgress + 25)) return false;
+          if (activeSignalFilter === 'cost_anomaly' && !(p.spentAmount > p.sanctionedAmount * 1.05)) return false;
+          if (activeSignalFilter === 'timeline_delay' && !(p.status === 'delayed' || p.primarySignal.key === 'timeline_delay')) return false;
+          if (activeSignalFilter === 'expenditure_anomaly' && !(p.spentAmount > p.sanctionedAmount)) return false;
+          if (activeSignalFilter === 'spatial_anomaly' && !(p.id === 'PRJ002' || p.primarySignal.key === 'spatial_anomaly')) return false;
+          if (activeSignalFilter === 'agency_pattern' && !(p.risk?.factors?.some(f => f.toLowerCase().includes('agency')) || p.agency === 'AG003')) return false;
+          if (activeSignalFilter === 'citizen_observation' && !(complaints || []).some(c => c.projectId === p.id || c.work_id === p.id)) return false;
+          if (activeSignalFilter === 'visual_mismatch' && !(p.progress_discrepancy_points && p.progress_discrepancy_points > 10)) return false;
+        }
+
+        // Delay filter
+        if (activeDelayFilter === 'critical' && !(p.status === 'delayed' && p.riskScore >= 70)) return false;
+        if (activeDelayFilter === 'delayed' && !(p.status === 'delayed')) return false;
+        if (activeDelayFilter === 'at_risk' && !(p.physicalProgress < 50 && p.status !== 'completed')) return false;
+        if (activeDelayFilter === 'on_track' && (p.status === 'delayed' || p.riskScore >= 70)) return false;
+
+        // Search Query
+        if (searchQuery.trim()) {
+          const q = searchQuery.trim().toLowerCase();
+          const contractor = (agencyMap[p.agency] || p.implementing_agency || '').toLowerCase();
+          const searchable = `${p.id} ${p.name} ${p.district} ${p.state} ${p.sector} ${p.category} ${contractor} ${p.primarySignal.label}`.toLowerCase();
+          if (!searchable.includes(q)) return false;
+        }
+
+        return true;
+      })
+      .sort((a, b) => {
+        if (sortBy === 'score_desc') return b.riskScore - a.riskScore;
+        if (sortBy === 'score_asc') return a.riskScore - b.riskScore;
+        if (sortBy === 'spent_desc') return b.spentAmount - a.spentAmount;
+        if (sortBy === 'recent') {
+          const tA = new Date(a.sanctionDate || a.startDate || '2024-01-01').getTime();
+          const tB = new Date(b.sanctionDate || b.startDate || '2024-01-01').getTime();
+          return tB - tA;
+        }
+        return b.riskScore - a.riskScore;
+      });
+  }, [scoredProjects, activeKpiFilter, activeSignalFilter, activeDelayFilter, searchQuery, sortBy, getCase, complaints, agencyMap]);
+
+  // ── 5. Selected Project Dossier Data ──
+  const selectedProject = useMemo(() => {
+    return scoredProjects.find(p => p.id === selectedProjectId) || scoredProjects[0] || null;
+  }, [scoredProjects, selectedProjectId]);
+
+  // ── 6. Aggregate KPIs ──
+  const kpiData = useMemo(() => {
+    const total = scoredProjects.length;
+    const active = scoredProjects.filter(p => p.work_status !== 'Completed' && p.status !== 'completed').length;
+    const highPriority = scoredProjects.filter(p => p.riskScore >= 70 || p.review_priority === 'HIGH_PRIORITY').length;
+    const mediumPriority = scoredProjects.filter(p => p.riskScore >= 40 && p.riskScore < 70).length;
+    const requiringVerif = scoredProjects.filter(p => {
+      const caseData = getCase(p.id);
+      const auditStatus = p.audit_status || caseData?.status || 'MONITORED_AUTO';
+      return ['QUEUED_FOR_FIELD_INSPECTION', 'UNDER_FIELD_INVESTIGATION', 'Field Verification Dispatched', 'Under Review'].includes(auditStatus) || p.riskScore >= 70;
+    }).length;
+    const obsCount = complaints ? complaints.length : 0;
+
+    const exposureLakhs = scoredProjects
+      .filter(p => p.riskScore >= 70)
+      .reduce((acc, p) => acc + (p.sanctionedAmount / 100000 || 0), 0);
+
+    return { total, active, highPriority, mediumPriority, requiringVerif, obsCount, exposureLakhs };
+  }, [scoredProjects, complaints, getCase]);
+
+  // ── 7. Signal Counts for "Why Flagged" Matrix ──
+  const signalCounts = useMemo(() => {
+    let finMismatch = 0, costOverrun = 0, timeDelay = 0, expAnomaly = 0, spatial = 0, agencyPattern = 0, citizenObs = 0, visualDisc = 0;
+
+    scoredProjects.forEach(p => {
+      if (p.financialProgress > p.physicalProgress + 25) finMismatch++;
+      if (p.spentAmount > p.sanctionedAmount * 1.05) costOverrun++;
+      if (p.status === 'delayed' || p.primarySignal.key === 'timeline_delay') timeDelay++;
+      if (p.spentAmount > p.sanctionedAmount) expAnomaly++;
+      if (p.id === 'PRJ002' || p.primarySignal.key === 'spatial_anomaly') spatial++;
+      if (p.risk?.factors?.some(f => f.toLowerCase().includes('agency')) || p.agency === 'AG003') agencyPattern++;
+      if ((complaints || []).some(c => c.projectId === p.id || c.work_id === p.id)) citizenObs++;
+      if (p.progress_discrepancy_points && p.progress_discrepancy_points > 10) visualDisc++;
+    });
 
     return [
-      {
-        key: 'financial',
-        nameKey: 'signal_financial_name',
-        severity: finPct > 50 ? 'strong' : finPct > 20 ? 'elevated' : 'moderate',
-        findingKey: 'signal_financial_finding',
-        pct: 32,
-        color: 'red',
-      },
-      {
-        key: 'spatial',
-        nameKey: 'signal_spatial_name',
-        severity: 'elevated',
-        findingKey: 'signal_spatial_finding',
-        pct: 24,
-        color: 'teal',
-      },
-      {
-        key: 'delay',
-        nameKey: 'signal_delay_name',
-        severity: delayCount > 3 ? 'elevated' : 'moderate',
-        findingKey: 'signal_delay_finding',
-        pct: 21,
-        color: 'amber',
-      },
-      {
-        key: 'evidence',
-        nameKey: 'signal_evidence_name',
-        severity: 'low',
-        findingKey: 'signal_evidence_finding',
-        pct: 13,
-        color: 'sage',
-      },
-      {
-        key: 'other',
-        nameKey: 'signal_other_name',
-        severity: 'low',
-        findingKey: 'signal_other_finding',
-        pct: 10,
-        color: 'neutral',
-      },
+      { key: 'financial_mismatch', label: 'Financial–Physical Mismatch', count: finMismatch, desc: 'Expenditure % outpaces physical completion', severity: 'high' },
+      { key: 'cost_anomaly', label: 'Cost Overrun Anomaly', count: costOverrun, desc: 'Disbursements exceed sanctioned DPR amount', severity: 'high' },
+      { key: 'timeline_delay', label: 'Gestation Timeline Delay', count: timeDelay, desc: 'Behind statutory completion timeline', severity: 'medium' },
+      { key: 'expenditure_anomaly', label: 'Expenditure Velocity Spike', count: expAnomaly, desc: 'Rapid disbursement before milestone verification', severity: 'medium' },
+      { key: 'spatial_anomaly', label: 'Geospatial Duplicate Overlap', count: spatial, desc: 'Proximity cluster within 250m radius', severity: 'medium' },
+      { key: 'agency_pattern', label: 'Agency Concentration Pattern', count: agencyPattern, desc: 'Multiple flagged contracts under single vendor', severity: 'low' },
+      { key: 'citizen_observation', label: 'Citizen Ground Observations', count: citizenObs, desc: 'Public discrepancy filings recorded', severity: 'high' },
+      { key: 'visual_mismatch', label: 'Visual Progress Discrepancy', count: visualDisc, desc: 'AI satellite/photo estimate vs claimed DPR', severity: 'high' }
     ];
-  }, [scored, top]);
+  }, [scoredProjects, complaints]);
 
-  const filterLabels = {
-    all: t('dash_filter_all'),
-    financial: t('dash_filter_financial'),
-    duplicate: t('dash_filter_duplicate'),
-    delay: t('dash_filter_delay'),
-  };
+  // ── 8. Delay Matrix Counts ──
+  const delayStats = useMemo(() => {
+    let onTrack = 0, atRisk = 0, delayed = 0, critical = 0;
+    scoredProjects.forEach(p => {
+      if (p.status === 'delayed' && p.riskScore >= 70) critical++;
+      else if (p.status === 'delayed') delayed++;
+      else if (p.physicalProgress < 50 && p.status !== 'completed') atRisk++;
+      else onTrack++;
+    });
+    return { onTrack, atRisk, delayed, critical };
+  }, [scoredProjects]);
 
-  const handleTileClick = (key) => {
-    if (key === 'works') {
-      setActiveTileFilter(null);
-      setActiveActionFilter(null);
-      setFilter('all');
-    } else {
-      setActiveTileFilter((prev) => (prev === key ? null : key));
-      setActiveActionFilter(null);
+  // ── 9. Live System Alerts ──
+  const liveAlerts = useMemo(() => {
+    const alerts = [];
+    scoredProjects.filter(p => p.riskScore >= 70).slice(0, 4).forEach(p => {
+      alerts.push({
+        id: `ALT-${p.id}`,
+        projectId: p.id,
+        type: 'HIGH_PRIORITY',
+        title: `${p.id} · Priority Verification Required`,
+        desc: `${p.name} exhibits ${p.primarySignal.label} (${p.riskScore}/100 Risk Score).`,
+        time: 'Active Alert',
+        severity: 'critical'
+      });
+    });
+
+    if (complaints && complaints.length > 0) {
+      complaints.slice(0, 2).forEach((c, idx) => {
+        alerts.push({
+          id: `ALT-CIT-${idx}`,
+          projectId: c.projectId,
+          type: 'CITIZEN_OBSERVATION',
+          title: `Citizen Observation on ${c.projectId}`,
+          desc: `Issue: ${c.issueType || 'Ground Discrepancy'} — "${(c.observation || '').slice(0, 55)}..."`,
+          time: 'Recent Submission',
+          severity: 'amber'
+        });
+      });
     }
+
+    return alerts;
+  }, [scoredProjects, complaints]);
+
+  // ── Handlers ──
+  const handleRefresh = async () => {
+    await refreshData();
+    setLastSyncTime(new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
   };
 
-  const resetAllFilters = () => {
-    setActiveTileFilter(null);
-    setActiveActionFilter(null);
-    setFilter('all');
-    setQuery('');
+  const handleExportCSV = () => {
+    exportProjectsToCSV(filteredQueue, `prahari_command_centre_${selectedDistrict || 'national'}_${Date.now()}.csv`);
   };
 
-  const activeFilterName = useMemo(() => {
-    if (activeTileFilter === 'priority') return `${t('dash_kpi_priority')} (Score ≥ 70)`;
-    if (activeTileFilter === 'verification') return t('dash_kpi_verification');
-    if (activeTileFilter === 'resolved') return t('dash_kpi_resolved');
-    if (activeTileFilter === 'exposure') return t('dash_kpi_exposure');
-    if (activeActionFilter === 'high_reviews') return t('dash_action_high');
-    if (activeActionFilter === 'field_verif') return t('dash_action_field');
-    if (activeActionFilter === 'awaiting_evidence') return t('dash_action_evidence');
-    if (filter !== 'all') return filterLabels[filter];
-    return null;
-  }, [activeTileFilter, activeActionFilter, filter, t, filterLabels]);
+  const handleResetFilters = () => {
+    setActiveKpiFilter(null);
+    setActiveSignalFilter(null);
+    setActiveDelayFilter(null);
+    setSearchQuery('');
+    setSelectedSector('all');
+  };
+
+  const handleOpenDocket = (proj) => {
+    setDocketModalProject(proj);
+    setDocketCopied(false);
+  };
+
+  // Available unique districts for dropdown based on active state
+  const availableDistricts = useMemo(() => {
+    const set = new Set();
+    activePool.forEach(p => {
+      if (!selectedState || (p.state || '').toLowerCase() === selectedState.toLowerCase()) {
+        if (p.district) set.add(p.district);
+      }
+    });
+    return Array.from(set).sort();
+  }, [activePool, selectedState]);
+
+  // Available unique sectors
+  const availableSectors = useMemo(() => {
+    const set = new Set();
+    activePool.forEach(p => {
+      const s = p.sector || p.category;
+      if (s) set.add(s);
+    });
+    return Array.from(set).sort();
+  }, [activePool]);
 
   return (
     <div className="page-content command-page">
-      {/* ── Workspace header ── */}
-      <div className="workspace-head">
+      {/* ════════════════════════════════════════════════════════════════════════
+          COMMAND CENTRE HEADER & OPERATIONAL STATUS BAR
+      ════════════════════════════════════════════════════════════════════════ */}
+      <div className="workspace-head command-header-surface">
         <div>
-          <div className="eyebrow">{authorityLabel.toUpperCase()} · {scope}</div>
-          <h2>{t('dash_title')}</h2>
-          <p>{t('dash_subtitle')}</p>
-        </div>
-        <div className="workspace-tools">
-          <div className="scope-lock">
-            <MapPin size={15} />
-            <span>{scope}</span>
-            <small>{t('dash_scoped')}</small>
+          <div className="eyebrow flex items-center gap-2">
+            <span className="live-status-ping" />
+            <span>OPERATIONAL DECISION-SUPPORT CENTRE · {getRoleLabel(user?.role || 'district_authority').toUpperCase()}</span>
           </div>
-          <SpeakerButton text={`${t('dash_title')} ${t('dash_subtitle')}`} />
+          <h2 style={{ fontSize: '24px', fontWeight: 800, letterSpacing: '-0.025em', margin: '4px 0 2px' }}>
+            PRahari Command Centre
+          </h2>
+          <p style={{ fontSize: '13px', color: 'var(--muted)', margin: 0 }}>
+            {hi ? 'एआई-संचालित एमपीलैड्स परियोजना जोखिम निगरानी एवं स्थलीय सत्यापन प्रणाली' : 'AI-powered MPLADS project risk monitoring & verification'}
+          </p>
+        </div>
+
+        {/* Operational Toolbar & Data Connection Status */}
+        <div className="command-top-actions flex flex-wrap items-center gap-3">
+          {/* Data Connection Badge */}
+          <div
+            className={`data-connection-badge ${backendStatus === 'offline' ? 'offline' : 'connected'}`}
+            title={backendStatus === 'offline' ? 'Database connection unavailable. Using cached local data.' : 'Connected to Supabase Cloud PostgREST database'}
+          >
+            <Database size={13} />
+            <span>{backendStatus === 'offline' ? 'Data connection unavailable' : 'Cloud Connected (Supabase)'}</span>
+            <small style={{ opacity: 0.8 }}>· {lastSyncTime}</small>
+          </div>
+
+          {/* Action: Refresh Data */}
+          <button
+            type="button"
+            className="command-tool-btn"
+            onClick={handleRefresh}
+            disabled={isSyncing}
+            title="Fetch latest project and intelligence records from Supabase"
+          >
+            <RefreshCw size={14} className={isSyncing ? 'spin-anim' : ''} />
+            <span>{isSyncing ? (hi ? 'सिंक हो रहा है…' : 'Syncing…') : (hi ? 'रिफ्रेश' : 'Refresh Data')}</span>
+          </button>
+
+          {/* Action: Export CSV */}
+          <button
+            type="button"
+            className="command-tool-btn"
+            onClick={handleExportCSV}
+            title="Download active filtered risk register as CSV"
+          >
+            <Download size={14} />
+            <span>{hi ? 'जोखिम सूची डाउनलोड' : 'Export Risk List'}</span>
+          </button>
+
+          {/* Action: Toggle High Priority */}
+          <button
+            type="button"
+            className={`command-tool-btn ${activeKpiFilter === 'high' ? 'active-critical' : ''}`}
+            onClick={() => setActiveKpiFilter(prev => prev === 'high' ? null : 'high')}
+          >
+            <ShieldAlert size={14} style={{ color: '#C85A32' }} />
+            <span>{hi ? 'उच्च जोखिम फ़िल्टर' : 'View High Priority'}</span>
+          </button>
+
+          <SpeakerButton text={`PRahari Command Centre. AI-powered MPLADS project risk monitoring and verification. ${kpiData.highPriority} high priority cases requiring official attention.`} />
         </div>
       </div>
 
-      {/* ── KPI Grid ── */}
-      <div className="kpi-grid">
+      {/* ════════════════════════════════════════════════════════════════════════
+          GEOGRAPHICAL DRILLDOWN CONTROLLER
+      ════════════════════════════════════════════════════════════════════════ */}
+      <div className="geographic-drilldown-bar panel">
+        <div className="drilldown-label">
+          <Compass size={16} />
+          <span>{hi ? 'भौगोलिक क्षेत्राधिकार:' : 'Geographic Jurisdiction:'}</span>
+        </div>
+
+        <div className="drilldown-selects flex flex-wrap items-center gap-2 flex-1">
+          {/* State Selector */}
+          <select
+            value={selectedState}
+            onChange={(e) => {
+              setSelectedState(e.target.value);
+              setSelectedDistrict('');
+            }}
+            className="drilldown-dropdown"
+          >
+            <option value="">All India (National View)</option>
+            {states.map(s => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+
+          {/* District Selector */}
+          <select
+            value={selectedDistrict}
+            onChange={(e) => setSelectedDistrict(e.target.value)}
+            className="drilldown-dropdown"
+          >
+            <option value="">All Districts ({availableDistricts.length})</option>
+            {availableDistricts.map(d => (
+              <option key={d} value={d}>{d}</option>
+            ))}
+          </select>
+
+          {/* Sector Selector */}
+          <select
+            value={selectedSector}
+            onChange={(e) => setSelectedSector(e.target.value)}
+            className="drilldown-dropdown"
+          >
+            <option value="all">All Sectors ({availableSectors.length})</option>
+            {availableSectors.map(sec => (
+              <option key={sec} value={sec}>{sec}</option>
+            ))}
+          </select>
+        </div>
+
+        {(selectedState || selectedDistrict || selectedSector !== 'all' || activeKpiFilter || activeSignalFilter || activeDelayFilter || searchQuery) && (
+          <button
+            type="button"
+            className="drilldown-reset-btn"
+            onClick={() => {
+              setSelectedState('');
+              setSelectedDistrict('');
+              handleResetFilters();
+            }}
+          >
+            <X size={13} />
+            <span>{hi ? 'सभी फ़िल्टर रीसेट' : 'Reset Jurisdiction'}</span>
+          </button>
+        )}
+      </div>
+
+      {/* ════════════════════════════════════════════════════════════════════════
+          1. INTERACTIVE KPI OVERVIEW CARDS
+      ════════════════════════════════════════════════════════════════════════ */}
+      <div className="kpi-grid command-kpi-row">
         {[
-          { key: 'works', val: '1,248', label: t('dash_kpi_works'), sub: t('dash_kpi_works_sub'), color: 'neutral' },
-          { key: 'priority', val: String(priority || 87), label: t('dash_kpi_priority'), sub: t('dash_kpi_priority_sub'), color: 'critical' },
-          { key: 'verification', val: '18', label: t('dash_kpi_verification'), sub: t('dash_kpi_verification_sub'), color: 'amber' },
-          { key: 'resolved', val: '64', label: t('dash_kpi_resolved'), sub: t('dash_kpi_resolved_sub'), color: 'sage' },
-          { key: 'exposure', val: `₹${(exposure / 10000000).toFixed(1)} Cr`, label: t('dash_kpi_exposure'), sub: t('dash_kpi_exposure_sub'), color: 'teal' },
+          { key: 'all', count: kpiData.total, label: hi ? 'कुल परियोजनाएं' : 'TOTAL PROJECTS', sub: 'Across monitored jurisdiction', color: 'neutral' },
+          { key: 'active', count: kpiData.active, label: hi ? 'सक्रिय कार्य' : 'ACTIVE PROJECTS', sub: 'In-progress execution', color: 'teal' },
+          { key: 'high', count: kpiData.highPriority, label: hi ? 'उच्च प्राथमिकता' : 'HIGH PRIORITY', sub: 'Risk score ≥ 70 / Anomaly', color: 'critical' },
+          { key: 'medium', count: kpiData.mediumPriority, label: hi ? 'मध्यम प्राथमिकता' : 'MEDIUM PRIORITY', sub: 'Watchlist score 40–69', color: 'amber' },
+          { key: 'verification', count: kpiData.requiringVerif, label: hi ? 'सत्यापन आवश्यक' : 'REQUIRING VERIFICATION', sub: 'Active field investigation', color: 'brand' },
+          { key: 'observations', count: kpiData.obsCount, label: hi ? 'नागरिक अवलोकन' : 'CITIZEN OBSERVATIONS', sub: 'Public discrepancy filings', color: 'sage' }
         ].map((item) => {
-          const isActive = activeTileFilter === item.key;
+          const isSelected = activeKpiFilter === item.key;
           return (
             <div
               key={item.key}
               role="button"
               tabIndex={0}
-              className={`kpi-panel ${isActive ? 'active' : ''}`}
-              style={{
-                cursor: 'pointer',
-                transition: 'all 0.18s ease-in-out',
-                outline: isActive ? '2px solid var(--brand)' : 'none',
-                outlineOffset: '2px',
-                transform: isActive ? 'scale(1.02)' : 'none',
-                boxShadow: isActive ? '0 6px 18px rgba(49, 77, 63, 0.18)' : undefined,
-              }}
-              onClick={() => handleTileClick(item.key)}
+              className={`kpi-panel command-kpi-card ${isSelected ? 'active' : ''}`}
+              onClick={() => setActiveKpiFilter(prev => prev === item.key ? null : item.key)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();
-                  handleTileClick(item.key);
+                  setActiveKpiFilter(prev => prev === item.key ? null : item.key);
                 }
               }}
             >
               <div className={`kpi-accent ${item.color}`} />
               <span className="kpi-label">{item.label}</span>
-              <strong>{item.val}</strong>
-              <small>{item.sub}</small>
+              <strong className="kpi-number">{item.count}</strong>
+              <small className="kpi-subtext">{item.sub}</small>
+              {isSelected && <span className="kpi-active-badge">{hi ? 'फ़िल्टर सक्रिय' : 'Filtering Queue'}</span>}
             </div>
           );
         })}
       </div>
 
-      {/* ── Command Grid ── */}
-      <div className="command-grid">
-        {/* Priority Cases Panel */}
-        <section className="panel priority-panel">
-          <div className="panel-head">
+      {/* ════════════════════════════════════════════════════════════════════════
+          2 & 3. MAIN OPERATIONAL SPLIT: PRIORITY QUEUE + SYNCHRONIZED RISK MAP
+      ════════════════════════════════════════════════════════════════════════ */}
+      <div className="command-grid-layout">
+        {/* LEFT COLUMN: PRIORITY FOR VERIFICATION TABLE */}
+        <section className="panel priority-queue-section">
+          <div className="panel-head flex justify-between items-center flex-wrap gap-2">
             <div>
-              <span className="eyebrow">{t('dash_eyebrow')}</span>
-              <h3>{t('dash_priority_cases')}</h3>
+              <span className="eyebrow">{hi ? 'निर्णय-सहायता प्राथमिकता सूची' : 'OPERATIONAL QUEUE'}</span>
+              <h3 style={{ fontSize: '18px', fontWeight: 800, margin: 0 }}>Priority for Verification</h3>
+            </div>
+            <div className="queue-counter-tag">
+              <span>{filteredQueue.length} {hi ? 'परियोजनाएं क्रमबद्ध' : 'Cases Ranked'}</span>
             </div>
           </div>
 
-          <div className="filter-row">
-            {['all', 'financial', 'duplicate', 'delay'].map((f) => (
-              <button
-                key={f}
-                className={filter === f ? 'selected' : ''}
-                onClick={() => setFilter(f)}
-              >
-                {filterLabels[f]}
-              </button>
-            ))}
-
-            <button
-              type="button"
-              className="sort-toggle-btn"
-              onClick={() => setSortBy((prev) => (prev === 'score' ? 'recent' : 'score'))}
-              title={sortBy === 'score' ? t('sort_score') : t('sort_recent')}
-              style={{
-                background: sortBy === 'recent' ? 'var(--brand)' : 'transparent',
-                color: sortBy === 'recent' ? '#EDEBE6' : 'var(--ink)',
-                border: '1px solid var(--line)',
-                borderRadius: '7px',
-                padding: '5px 10px',
-                fontSize: '9px',
-                fontWeight: 700,
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '5px',
-                cursor: 'pointer',
-                marginLeft: '4px',
-              }}
-            >
-              <ArrowUpDown size={12} />
-              <span>{sortBy === 'score' ? t('sort_score') : t('sort_recent')}</span>
-            </button>
-
-            <label className="mini-search">
-              <SearchCheck size={15} />
+          {/* Table Toolbar (Search, Sort, Filter Indicator) */}
+          <div className="queue-controls-bar">
+            <div className="queue-search-wrap">
+              <Search size={14} style={{ color: 'var(--muted)' }} />
               <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder={t('dash_search_cases')}
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={hi ? 'आईडी, नाम, जिला या सिग्नल द्वारा खोजें…' : 'Search by ID (e.g. PRJ002), district, contractor, signal…'}
+                className="queue-search-input"
               />
-              {query && (
-                <button
-                  type="button"
-                  className="search-clear-btn"
-                  onClick={() => setQuery('')}
-                  aria-label="Clear search"
-                >
-                  <X size={14} />
+              {searchQuery && (
+                <button type="button" onClick={() => setSearchQuery('')} className="search-clear-btn">
+                  <X size={13} />
                 </button>
               )}
-            </label>
+            </div>
+
+            <div className="queue-sort-wrap">
+              <ArrowUpDown size={13} />
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="queue-sort-select"
+              >
+                <option value="score_desc">Risk Score: High to Low</option>
+                <option value="score_asc">Risk Score: Low to High</option>
+                <option value="spent_desc">Reported Spend: High to Low</option>
+                <option value="recent">Recently Sanctioned</option>
+              </select>
+            </div>
           </div>
 
-          {activeFilterName && (
-            <div
-              className="active-filter-banner"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '6px 12px',
-                marginTop: '8px',
-                marginBottom: '10px',
-                borderRadius: '7px',
-                background: 'rgba(49, 77, 63, 0.08)',
-                border: '1px solid rgba(49, 77, 63, 0.2)',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px' }}>
-                <span style={{ color: 'var(--muted)', fontWeight: 600 }}>
-                  {t('filter_active_label') || 'Active Filter'}:
-                </span>
-                <span
-                  style={{
-                    background: 'var(--brand)',
-                    color: '#EDEBE6',
-                    padding: '2px 8px',
-                    borderRadius: '4px',
-                    fontWeight: 700,
-                    fontSize: '11px',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                  }}
-                >
-                  {activeFilterName}
-                  <button
-                    type="button"
-                    onClick={resetAllFilters}
-                    style={{
-                      background: 'transparent',
-                      border: 'none',
-                      color: '#EDEBE6',
-                      cursor: 'pointer',
-                      padding: 0,
-                      display: 'flex',
-                      alignItems: 'center',
-                    }}
-                    title={t('filter_reset') || 'Reset'}
-                  >
-                    <X size={12} />
-                  </button>
-                </span>
+          {/* Active Filter Pill indicator if any */}
+          {(activeKpiFilter || activeSignalFilter || activeDelayFilter) && (
+            <div className="active-filter-indicator">
+              <div className="flex items-center gap-2 text-xs">
+                <Filter size={12} />
+                <span>{hi ? 'सक्रिय फ़िल्टर:' : 'Active Operational Filter:'}</span>
+                <strong className="active-filter-chip">
+                  {activeKpiFilter ? `KPI: ${activeKpiFilter.toUpperCase()}` : ''}
+                  {activeSignalFilter ? `Signal: ${activeSignalFilter.replace('_', ' ').toUpperCase()}` : ''}
+                  {activeDelayFilter ? `Delay: ${activeDelayFilter.toUpperCase()}` : ''}
+                </strong>
               </div>
-              <button
-                type="button"
-                onClick={resetAllFilters}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  color: 'var(--danger, #C85A32)',
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                }}
-              >
-                <X size={12} />
-                <span>{t('filter_reset') || 'Reset'}</span>
+              <button type="button" onClick={handleResetFilters} className="filter-clear-link">
+                {hi ? 'हटाएं' : 'Clear Filter'}
               </button>
             </div>
           )}
 
-          <div className="case-list">
-            {visible.length === 0 ? (
-              <div className="search-empty-state">
-                <SearchCheck size={32} />
-                <strong>{t('search_empty_title')}</strong>
-                <p>{t('search_empty_desc')}</p>
-                <button className="ghost-action" onClick={() => setQuery('')}>
-                  <X size={14} /> {t('search_reset')}
+          {/* Ranked Table */}
+          <div className="priority-table-container">
+            {filteredQueue.length === 0 ? (
+              <div className="empty-queue-state">
+                <ShieldAlert size={36} style={{ color: 'var(--muted)', margin: '0 auto 10px' }} />
+                <strong>{hi ? 'कोई परियोजना मेल नहीं खाती' : 'No matching projects in current filter scope'}</strong>
+                <p>{hi ? 'कृपया फ़िल्टर रीसेट करें या भिन्न जिला चुनें।' : 'Try clearing your search query or selecting another jurisdiction.'}</p>
+                <button type="button" className="ghost-action" onClick={handleResetFilters}>
+                  {hi ? 'फ़िल्टर रीसेट करें' : 'Reset All Filters'}
                 </button>
               </div>
             ) : (
-              visible.map((p, i) => {
-                const caseData = getCase(p.id);
-                const isDispatched = caseData?.status === 'UNDER_FIELD_INVESTIGATION' || caseData?.status === 'Field Verification Dispatched';
-                const officerName = caseData?.assignment?.officer || caseData?.assignedOfficer;
+              <table className="priority-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: '40px' }}>#</th>
+                    <th>Project & Location</th>
+                    <th>Sanction / Spend</th>
+                    <th>Progress</th>
+                    <th>Risk Score</th>
+                    <th>Primary Risk Signal</th>
+                    <th style={{ textAlign: 'right' }}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredQueue.map((p, idx) => {
+                    const isSelected = p.id === selectedProjectId;
+                    const SignalIcon = p.primarySignal.icon || AlertTriangle;
+                    const sanctionedLakhs = (p.sanctionedAmount / 100000).toFixed(1);
+                    const spentLakhs = (p.spentAmount / 100000).toFixed(1);
 
-                return (
-                  <div
-                    className="case-row"
-                    key={p.id}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => navigate(`/official/risk/${p.id}`)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        navigate(`/official/risk/${p.id}`);
-                      }
-                    }}
-                    style={{ cursor: 'pointer' }}
-                  >
-                    <div className="case-index">{String(i + 1).padStart(2, '0')}</div>
-                    <div className="case-main">
-                      <div className="case-id">{p.id} · {p.district}</div>
-                      <strong>{p.name}</strong>
-                      <div className="signal-tags">
-                        {p.spentAmount > p.sanctionedAmount * 1.1 && (
-                          <span className="tag red">{t('signal_financial_name')}</span>
-                        )}
-                        {p.status === 'delayed' && (
-                          <span className="tag amber">{t('signal_delay_name')}</span>
-                        )}
-                        {p.id === 'PRJ002' && (
-                          <span className="tag teal">{t('signal_spatial_name')}</span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="case-score">
-                      <b>{p.risk.score}</b>
-                      <span>{riskLabel(p.risk.score, t)}</span>
-                    </div>
-                    <div className="case-next">
-                      <small>{t('dash_next_action')}</small>
-                      {isDispatched ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
-                          <span
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px',
-                              fontSize: '11px',
-                              fontWeight: 700,
-                              color: 'var(--brand, #059669)',
-                              background: 'rgba(5, 150, 105, 0.1)',
-                              padding: '2px 8px',
-                              borderRadius: '5px',
-                              border: '1px solid rgba(5, 150, 105, 0.25)',
-                            }}
-                          >
-                            <CheckCircle2 size={12} />
-                            {lang === 'hi' ? 'स्थलीय जांच जारी' : 'Field Directive Dispatched'}
-                          </span>
-                          <button
-                            type="button"
-                            className="directive-reassign-link"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setDispatchModalProject(p);
-                            }}
-                            style={{
-                              background: 'transparent',
-                              border: 'none',
-                              color: 'var(--brand, #059669)',
-                              fontSize: '10px',
-                              fontWeight: 700,
-                              cursor: 'pointer',
-                              padding: '2px 0',
-                              textDecoration: 'underline',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '3px',
-                            }}
-                          >
-                            <FileText size={10} />
-                            <span>
-                              {officerName
-                                ? `${officerName.split('-')[0].trim()} · ${t('dash_view_directive') || 'View Directive'}`
-                                : (t('dash_view_directive') || 'View Directive')}
-                            </span>
-                          </button>
-                        </div>
-                      ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', alignItems: 'flex-start' }}>
-                          <button
-                            type="button"
-                            className="assign-verify-btn"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setDispatchModalProject(p);
-                            }}
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '5px',
-                              padding: '5px 10px',
-                              borderRadius: '6px',
-                              fontSize: '11px',
-                              fontWeight: 700,
-                              background: p.risk.score >= 70 ? 'var(--danger, #C85A32)' : 'var(--brand, #059669)',
-                              color: '#fff',
-                              border: 'none',
-                              cursor: 'pointer',
-                              boxShadow: '0 2px 5px rgba(0,0,0,0.12)',
-                              transition: 'all 0.15s ease',
-                            }}
-                            title={lang === 'hi' ? 'अधीनस्थ अधिकारी को स्थलीय जांच सौंपें' : 'Delegate field verification to subordinate officer'}
-                          >
-                            <ShieldAlert size={12} />
-                            <span>
-                              {p.risk.score >= 70
-                                ? (lang === 'hi' ? 'सत्यापन सौंपें (Assign)' : 'Assign Verification')
-                                : (lang === 'hi' ? 'जांच आदेश दें' : 'Dispatch Directive')}
-                            </span>
-                          </button>
-                          <span style={{ fontSize: '10px', color: 'var(--muted, #78716c)' }}>
-                            {p.risk.score >= 70 ? t('dash_field_verify_action') : t('dash_review_evidence_action')}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                    <ArrowRight size={16} className="row-arrow" />
-                  </div>
-                );
-              })
+                    return (
+                      <tr
+                        key={p.id}
+                        className={`priority-table-row ${isSelected ? 'selected-row' : ''}`}
+                        onClick={() => setSelectedProjectId(p.id)}
+                      >
+                        <td className="row-rank">{String(idx + 1).padStart(2, '0')}</td>
+                        <td className="row-project-cell">
+                          <div className="flex items-center gap-2">
+                            <span className="project-id-chip">{p.id}</span>
+                            <span className="project-district-tag">{p.district}</span>
+                          </div>
+                          <strong className="project-title-text" title={p.name}>{p.name}</strong>
+                          <span className="project-sector-text">{p.sector || p.category}</span>
+                        </td>
+                        <td className="row-financial-cell">
+                          <div className="financial-pair">
+                            <span className="sanction-val">₹{sanctionedLakhs}L</span>
+                            <span className="spent-val">₹{spentLakhs}L</span>
+                          </div>
+                          <div className="fin-ratio-bar">
+                            <div
+                              className={`fin-ratio-fill ${p.spentAmount > p.sanctionedAmount ? 'overrun' : ''}`}
+                              style={{ width: `${Math.min(100, p.financialProgress)}%` }}
+                            />
+                          </div>
+                        </td>
+                        <td className="row-progress-cell">
+                          <div className="progress-num-text">{p.physicalProgress}%</div>
+                          <div className="progress-micro-bar">
+                            <div className="progress-fill" style={{ width: `${p.physicalProgress}%` }} />
+                          </div>
+                        </td>
+                        <td className="row-risk-cell">
+                          <div className="risk-score-badge">
+                            <b className={`score-val ${p.riskTier.toLowerCase()}`}>{p.riskScore}</b>
+                            <span className={`risk-tier-tag ${p.riskTier.toLowerCase()}`}>{p.riskTier}</span>
+                          </div>
+                        </td>
+                        <td className="row-signal-cell">
+                          <div className={`signal-pill ${p.primarySignal.severity}`}>
+                            <SignalIcon size={12} />
+                            <span>{p.primarySignal.label}</span>
+                          </div>
+                        </td>
+                        <td className="row-action-cell">
+                          <div className="action-btn-group">
+                            <button
+                              type="button"
+                              className="view-intel-btn"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/official/risk/${p.id}`);
+                              }}
+                              title="Open deep-dive Project Intelligence page"
+                            >
+                              <span>VIEW INTELLIGENCE</span>
+                              <ChevronRight size={13} />
+                            </button>
+                            <button
+                              type="button"
+                              className="docket-quick-btn"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenDocket(p);
+                              }}
+                              title="Generate Evidence Docket"
+                            >
+                              <FileText size={12} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             )}
           </div>
         </section>
 
-        {/* Insights + Action Queue Aside */}
-        <aside className="side-stack">
-          <section className="panel insight-panel">
-            <div className="panel-head">
-              <div>
-                <span className="eyebrow">{t('dash_insights_eyebrow')}</span>
-                <h3>{t('dash_insights_title')}</h3>
-              </div>
-              <Sparkles size={17} />
-            </div>
-            <div className="insight-item">
-              <div className="insight-icon"><TrendingUp size={16} /></div>
-              <div>
-                <b>{t('dash_insight_1_title')}</b>
-                <p>{t('dash_insight_1_body')}</p>
-                <button onClick={() => navigate('/official/risk/PRJ002')}>
-                  {t('dash_insight_1_link')}
-                </button>
-              </div>
-            </div>
-            <div className="insight-item">
-              <div className="insight-icon"><UsersRound size={16} /></div>
-              <div>
-                <b>{t('dash_insight_2_title')}</b>
-                <p>{t('dash_insight_2_body')}</p>
-                <button onClick={() => navigate('/official/agency')}>
-                  {t('dash_insight_2_link')}
-                </button>
-              </div>
-            </div>
-          </section>
-
-          <section className="panel action-panel">
-            <div className="panel-head">
-              <div>
-                <span className="eyebrow">{t('dash_action_eyebrow')}</span>
-                <h3>{t('dash_action_title')}</h3>
-              </div>
-              <Clock3 size={17} />
-            </div>
-
-            <div
-              className={`action-line ${activeActionFilter === 'high_reviews' ? 'selected' : ''}`}
-              role="button"
-              tabIndex={0}
-              style={{
-                cursor: 'pointer',
-                borderRadius: '8px',
-                padding: '8px',
-                outline: activeActionFilter === 'high_reviews' ? '2px solid var(--danger, #C85A32)' : 'none',
-                background: activeActionFilter === 'high_reviews' ? 'rgba(200, 90, 50, 0.08)' : 'transparent',
-                transition: 'all 0.15s ease',
-              }}
-              onClick={() => {
-                setActiveActionFilter((prev) => (prev === 'high_reviews' ? null : 'high_reviews'));
-                setActiveTileFilter(null);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  setActiveActionFilter((prev) => (prev === 'high_reviews' ? null : 'high_reviews'));
-                  setActiveTileFilter(null);
-                }
-              }}
-            >
-              <span className="queue-dot critical" />
-              <div>
-                <b>{actionHighCount}</b>
-                <span>{t('dash_action_high')}</span>
-              </div>
-              <button
-                type="button"
-                className="action-nav-arrow"
-                title={t('dash_action_high')}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  const target = scored.find((p) => p.risk.score >= 70);
-                  navigate(`/official/risk/${target?.id || 'PRJ002'}`);
-                }}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  color: 'inherit',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  padding: 2,
-                }}
-              >
-                <ArrowRight size={14} />
-              </button>
-            </div>
-
-            <div
-              className={`action-line ${activeActionFilter === 'field_verif' ? 'selected' : ''}`}
-              role="button"
-              tabIndex={0}
-              style={{
-                cursor: 'pointer',
-                borderRadius: '8px',
-                padding: '8px',
-                outline: activeActionFilter === 'field_verif' ? '2px solid var(--amber, #D97706)' : 'none',
-                background: activeActionFilter === 'field_verif' ? 'rgba(217, 119, 6, 0.08)' : 'transparent',
-                transition: 'all 0.15s ease',
-              }}
-              onClick={() => {
-                setActiveActionFilter((prev) => (prev === 'field_verif' ? null : 'field_verif'));
-                setActiveTileFilter(null);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  setActiveActionFilter((prev) => (prev === 'field_verif' ? null : 'field_verif'));
-                  setActiveTileFilter(null);
-                }
-              }}
-            >
-              <span className="queue-dot amber" />
-              <div>
-                <b>{actionFieldCount}</b>
-                <span>{t('dash_action_field')}</span>
-              </div>
-              <button
-                type="button"
-                className="action-nav-arrow"
-                title={t('dash_action_field')}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  const target = scored.find((p) => p.risk.score >= 70 || p.status === 'delayed');
-                  navigate(`/official/risk/${target?.id || 'PRJ002'}`);
-                }}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  color: 'inherit',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  padding: 2,
-                }}
-              >
-                <ArrowRight size={14} />
-              </button>
-            </div>
-
-            <div
-              className={`action-line ${activeActionFilter === 'awaiting_evidence' ? 'selected' : ''}`}
-              role="button"
-              tabIndex={0}
-              style={{
-                cursor: 'pointer',
-                borderRadius: '8px',
-                padding: '8px',
-                outline: activeActionFilter === 'awaiting_evidence' ? '2px solid var(--sage, #5B755E)' : 'none',
-                background: activeActionFilter === 'awaiting_evidence' ? 'rgba(91, 117, 94, 0.08)' : 'transparent',
-                transition: 'all 0.15s ease',
-              }}
-              onClick={() => {
-                setActiveActionFilter((prev) => (prev === 'awaiting_evidence' ? null : 'awaiting_evidence'));
-                setActiveTileFilter(null);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  setActiveActionFilter((prev) => (prev === 'awaiting_evidence' ? null : 'awaiting_evidence'));
-                  setActiveTileFilter(null);
-                }
-              }}
-            >
-              <span className="queue-dot neutral" />
-              <div>
-                <b>{actionEvidenceCount}</b>
-                <span>{t('dash_action_evidence')}</span>
-              </div>
-              <button
-                type="button"
-                className="action-nav-arrow"
-                title={t('dash_action_evidence')}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  const target = scored.find((p) => p.physicalProgress < 50 || p.isAnomaly);
-                  navigate(`/official/risk/${target?.id || 'PRJ002'}`);
-                }}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  color: 'inherit',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  padding: 2,
-                }}
-              >
-                <ArrowRight size={14} />
-              </button>
-            </div>
-          </section>
-        </aside>
-      </div>
-
-      {/* ── Bottom Grid ── */}
-      <div className="bottom-grid">
-        <section className="panel map-panel">
-          <div className="panel-head">
+        {/* RIGHT COLUMN: SYNCHRONIZED RISK MAP & GEOSPATIAL RADAR */}
+        <section className="panel risk-map-section">
+          <div className="panel-head flex justify-between items-center">
             <div>
-              <span className="eyebrow">{t('dash_spatial_eyebrow')}</span>
-              <h3>{t('dash_spatial_title')}</h3>
+              <span className="eyebrow">{hi ? 'स्थानिक जोखिम निगरानी' : 'GEOSPATIAL INTELLIGENCE'}</span>
+              <h3 style={{ fontSize: '18px', fontWeight: 800, margin: 0 }}>Pan-India Risk Map</h3>
             </div>
-            <span className="map-caption">
-              {lang === 'hi' ? 'वाराणसी जिला · 5 प्रशासनिक ब्लॉक' : 'Varanasi District · 5 Administrative Blocks'}
+            <div className="map-legend-pills flex items-center gap-2">
+              <span className="legend-dot red" title="High Priority (Score ≥ 70)" />
+              <span className="legend-text">High</span>
+              <span className="legend-dot amber" title="Moderate (Score 40–69)" />
+              <span className="legend-text">Med</span>
+              <span className="legend-dot green" title="Stable (Score < 40)" />
+              <span className="legend-text">Low</span>
+            </div>
+          </div>
+
+          <div className="command-map-wrapper">
+            <CivicMap
+              projects={scoredProjects}
+              focusedId={selectedProjectId}
+              onPinClick={(id) => setSelectedProjectId(id)}
+              height={440}
+              showFilters={true}
+            />
+          </div>
+
+          <div className="map-sync-footer flex justify-between items-center text-xs">
+            <span className="flex items-center gap-1.5 text-stone-600 dark:text-stone-300">
+              <MapPin size={13} style={{ color: 'var(--brand)' }} />
+              {selectedDistrict ? `${selectedDistrict} District Scope` : selectedState ? `${selectedState} State Scope` : 'All India National Map'}
+            </span>
+            <span style={{ color: 'var(--muted)' }}>
+              Clicking pins synchronizes the priority queue and AI dossier
             </span>
           </div>
-          <CivicMap
-            projects={scored}
-            focusedId={focusedId}
-            onPinClick={(id) => setFocusedId(id)}
-            height={440}
-            showFilters={true}
-          />
         </section>
-
-        <SignalMixCard signals={signals} t={t} />
       </div>
 
-      {/* Administrative Field Directive Dispatch Modal */}
+      {/* ════════════════════════════════════════════════════════════════════════
+          4 & 5 & 6. OPERATIONAL TRI-PANEL: WHY FLAGGED + FINANCIAL PROGRESS + DELAYS
+      ════════════════════════════════════════════════════════════════════════ */}
+      <div className="command-secondary-grid">
+        {/* 4. "WHY ARE PROJECTS BEING FLAGGED?" */}
+        <section className="panel why-flagged-panel">
+          <div className="panel-head">
+            <div>
+              <span className="eyebrow">{hi ? 'जोखिम कारक वर्गीकरण' : 'RISK SIGNAL BREAKDOWN'}</span>
+              <h3 style={{ fontSize: '16px', fontWeight: 800, margin: 0 }}>Why Are Projects Being Flagged?</h3>
+              <small style={{ color: 'var(--muted)', fontSize: '11px' }}>Click any signal to filter the priority queue</small>
+            </div>
+            <Sparkles size={16} style={{ color: 'var(--brand)' }} />
+          </div>
+
+          <div className="signal-matrix-grid">
+            {signalCounts.map(sig => {
+              const isActive = activeSignalFilter === sig.key;
+              return (
+                <div
+                  key={sig.key}
+                  role="button"
+                  tabIndex={0}
+                  className={`signal-matrix-card ${sig.severity} ${isActive ? 'active' : ''}`}
+                  onClick={() => setActiveSignalFilter(prev => prev === sig.key ? null : sig.key)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setActiveSignalFilter(prev => prev === sig.key ? null : sig.key);
+                    }
+                  }}
+                >
+                  <div className="signal-card-top flex justify-between items-center">
+                    <strong className="signal-card-title">{sig.label}</strong>
+                    <span className="signal-card-count">{sig.count}</span>
+                  </div>
+                  <p className="signal-card-desc">{sig.desc}</p>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* 5. FINANCIAL VS PHYSICAL PROGRESS ANOMALY MATRIX */}
+        <section className="panel progress-matrix-panel">
+          <div className="panel-head">
+            <div>
+              <span className="eyebrow">{hi ? 'व्यय बनाम भौतिक प्रगति' : 'ANOMALY MATRIX'}</span>
+              <h3 style={{ fontSize: '16px', fontWeight: 800, margin: 0 }}>Financial vs Physical Progress</h3>
+              <small style={{ color: 'var(--muted)', fontSize: '11px' }}>Potential financial–physical progress divergence</small>
+            </div>
+            <Activity size={16} style={{ color: '#D97706' }} />
+          </div>
+
+          <div className="progress-comparison-table-wrap">
+            <table className="progress-mini-table">
+              <thead>
+                <tr>
+                  <th>Project</th>
+                  <th>Exp %</th>
+                  <th>Phys %</th>
+                  <th>Gap</th>
+                  <th>Risk Signal Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {scoredProjects.slice(0, 6).map(p => {
+                  const gap = p.financialProgress - p.physicalProgress;
+                  const isSevere = gap > 25;
+                  return (
+                    <tr
+                      key={p.id}
+                      onClick={() => setSelectedProjectId(p.id)}
+                      className={`cursor-pointer ${p.id === selectedProjectId ? 'active-row' : ''}`}
+                    >
+                      <td>
+                        <b className="text-xs">{p.id}</b>
+                        <small className="block text-stone-500 truncate" style={{ maxWidth: '120px' }}>{p.name}</small>
+                      </td>
+                      <td><b>{p.financialProgress}%</b></td>
+                      <td><b>{p.physicalProgress}%</b></td>
+                      <td>
+                        <span className={`gap-badge ${isSevere ? 'critical' : gap > 10 ? 'amber' : 'neutral'}`}>
+                          {gap > 0 ? `+${gap}%` : `${gap}%`}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={`status-pill ${isSevere ? 'danger' : 'safe'}`}>
+                          {isSevere ? 'Requires Verification' : 'Within Tolerance'}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        {/* 6. PROJECT DELAY INTELLIGENCE */}
+        <section className="panel delay-intel-panel">
+          <div className="panel-head">
+            <div>
+              <span className="eyebrow">{hi ? 'समय-सीमा विश्लेषण' : 'GESTATION TIMELINES'}</span>
+              <h3 style={{ fontSize: '16px', fontWeight: 800, margin: 0 }}>Project Delay Intelligence</h3>
+              <small style={{ color: 'var(--muted)', fontSize: '11px' }}>Timeline adherence against approved DPR schedule</small>
+            </div>
+            <Clock size={16} style={{ color: '#C85A32' }} />
+          </div>
+
+          <div className="delay-quadrant-grid">
+            <div
+              className={`delay-box critical ${activeDelayFilter === 'critical' ? 'active' : ''}`}
+              onClick={() => setActiveDelayFilter(prev => prev === 'critical' ? null : 'critical')}
+            >
+              <div className="delay-count">{delayStats.critical}</div>
+              <div className="delay-label">Critical Delay</div>
+              <small>Severely stalled & high risk</small>
+            </div>
+
+            <div
+              className={`delay-box delayed ${activeDelayFilter === 'delayed' ? 'active' : ''}`}
+              onClick={() => setActiveDelayFilter(prev => prev === 'delayed' ? null : 'delayed')}
+            >
+              <div className="delay-count">{delayStats.delayed}</div>
+              <div className="delay-label">Delayed</div>
+              <small>Past scheduled completion</small>
+            </div>
+
+            <div
+              className={`delay-box at-risk ${activeDelayFilter === 'at_risk' ? 'active' : ''}`}
+              onClick={() => setActiveDelayFilter(prev => prev === 'at_risk' ? null : 'at_risk')}
+            >
+              <div className="delay-count">{delayStats.atRisk}</div>
+              <div className="delay-label">At Risk</div>
+              <small>Slow physical milestones</small>
+            </div>
+
+            <div
+              className={`delay-box on-track ${activeDelayFilter === 'on_track' ? 'active' : ''}`}
+              onClick={() => setActiveDelayFilter(prev => prev === 'on_track' ? null : 'on_track')}
+            >
+              <div className="delay-count">{delayStats.onTrack}</div>
+              <div className="delay-label">On Track</div>
+              <small>Milestones adhering to DPR</small>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      {/* ════════════════════════════════════════════════════════════════════════
+          7 & 8. SELECTED PROJECT DOSSIER: AI RISK INTELLIGENCE & PHYSICAL VERIFICATION
+      ════════════════════════════════════════════════════════════════════════ */}
+      {selectedProject && (() => {
+        const reportedProg = selectedProject.physicalProgress ?? 75;
+        const visualEstimate = selectedProject.ai_visual_estimate_pct ?? Math.max(0, reportedProg - 20);
+        const discrepancy = Math.abs(reportedProg - visualEstimate);
+        const caseState = getCase(selectedProject.id);
+
+        return (
+          <div className="selected-project-dossier-grid">
+            {/* 7. AI RISK INTELLIGENCE DOSSIER */}
+            <section className="panel ai-dossier-panel">
+              <div className="panel-head flex justify-between items-center">
+                <div>
+                  <span className="eyebrow">{hi ? 'एआई जोखिम विश्लेषण' : 'SELECTED CASE INTELLIGENCE'} · {selectedProject.id}</span>
+                  <h3 style={{ fontSize: '18px', fontWeight: 800, margin: 0 }}>{selectedProject.name}</h3>
+                  <small style={{ color: 'var(--muted)' }}>
+                    📍 {selectedProject.district}, {selectedProject.state} · {selectedProject.sector || selectedProject.category}
+                  </small>
+                </div>
+                <div className="dossier-score-badge">
+                  <div className="score-hero-num">{selectedProject.riskScore}</div>
+                  <span>/ 100</span>
+                </div>
+              </div>
+
+              {/* Attribution Score Breakdown */}
+              <div className="attribution-breakdown-section">
+                <span className="section-eyebrow">WHY FLAGGED? (TRACEABLE RISK SIGNALS)</span>
+                <div className="attribution-chips-grid">
+                  <div className="attrib-chip">
+                    <span className="attrib-title">Cost Anomaly</span>
+                    <strong className="attrib-val">+28</strong>
+                  </div>
+                  <div className="attrib-chip">
+                    <span className="attrib-title">Timeline Slippage</span>
+                    <strong className="attrib-val">+21</strong>
+                  </div>
+                  <div className="attrib-chip">
+                    <span className="attrib-title">Progress Gap</span>
+                    <strong className="attrib-val">+17</strong>
+                  </div>
+                  <div className="attrib-chip">
+                    <span className="attrib-title">Expenditure Signal</span>
+                    <strong className="attrib-val">+16</strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Traceable Explanation */}
+              <div className="dossier-narrative-box">
+                <p style={{ margin: 0, fontSize: '12px', lineHeight: 1.55 }}>
+                  "Reported expenditure is substantially ahead of reported physical progress. Combined with other available project signals, this project is recommended for priority verification."
+                </p>
+                <div className="narrative-disclaimer-tag">
+                  <Info size={12} />
+                  <span>Contribution to review priority, not a statistical fraud finding. Human verification mandatory.</span>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="dossier-action-row flex gap-2">
+                <button
+                  type="button"
+                  className="primary-action flex-1"
+                  onClick={() => navigate(`/official/risk/${selectedProject.id}`)}
+                >
+                  <Eye size={14} />
+                  <span>{hi ? 'पूर्ण प्रोजेक्ट इंटेलिजेंस खोलें' : 'Open Project Intelligence'}</span>
+                  <ChevronRight size={14} />
+                </button>
+
+                <button
+                  type="button"
+                  className="secondary-action"
+                  onClick={() => handleOpenDocket(selectedProject)}
+                >
+                  <FileText size={14} />
+                  <span>{hi ? 'डॉकेट जनरेट करें' : 'Generate Evidence Docket'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  className="secondary-action"
+                  onClick={() => setDispatchModalProject(selectedProject)}
+                  title="Dispatch field verification directive"
+                >
+                  <ShieldAlert size={14} style={{ color: '#C85A32' }} />
+                  <span>{hi ? 'जांच सौंपें' : 'Assign Directive'}</span>
+                </button>
+              </div>
+            </section>
+
+            {/* 8. PHYSICAL VERIFICATION INTELLIGENCE */}
+            <section className="panel physical-verif-panel">
+              <div className="panel-head">
+                <div>
+                  <span className="eyebrow">{hi ? 'भौतिक सत्यापन विश्लेषण' : 'GROUND TRUTH VERIFICATION'}</span>
+                  <h3 style={{ fontSize: '18px', fontWeight: 800, margin: 0 }}>Physical Verification Intelligence</h3>
+                  <small style={{ color: 'var(--muted)' }}>Reported DPR progress vs AI satellite / site imagery estimate</small>
+                </div>
+                <Camera size={18} style={{ color: 'var(--brand)' }} />
+              </div>
+
+              {/* Comparison Stats */}
+              <div className="verif-stats-row flex justify-between items-center gap-4">
+                <div className="verif-metric-box">
+                  <span className="verif-metric-label">REPORTED PROGRESS</span>
+                  <b className="verif-metric-num">{reportedProg}%</b>
+                </div>
+                <div className="verif-metric-box">
+                  <span className="verif-metric-label">AI VISUAL ESTIMATE</span>
+                  <b className="verif-metric-num" style={{ color: '#c2410c' }}>{visualEstimate}%</b>
+                </div>
+                <div className="verif-metric-box">
+                  <span className="verif-metric-label">DISCREPANCY</span>
+                  <b className="verif-metric-num" style={{ color: discrepancy > 10 ? '#dc2626' : '#059669' }}>
+                    {discrepancy} pts
+                  </b>
+                </div>
+              </div>
+
+              {/* Dual Progress Bars */}
+              <div className="dual-progress-container flex flex-col gap-2">
+                <div>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span>Reported Physical Progress (Filing)</span>
+                    <b>{reportedProg}%</b>
+                  </div>
+                  <div className="progress-track">
+                    <div className="progress-bar-fill brand" style={{ width: `${reportedProg}%` }} />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span>AI Visual Estimate (Satellite & Geotagged Survey)</span>
+                    <b style={{ color: '#c2410c' }}>{visualEstimate}%</b>
+                  </div>
+                  <div className="progress-track">
+                    <div className="progress-bar-fill orange" style={{ width: `${visualEstimate}%` }} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Mismatch Status Banner */}
+              {discrepancy > 10 ? (
+                <div className="mismatch-warning-banner">
+                  <AlertTriangle size={16} className="text-amber-600 flex-shrink-0" />
+                  <div>
+                    <strong className="text-amber-900 block text-xs">POTENTIAL PROGRESS MISMATCH</strong>
+                    <p className="text-amber-800 text-xs m-0">
+                      AI visual analysis indicates a potential difference between reported project progress and visible site progress. Official physical verification is recommended.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="mismatch-safe-banner">
+                  <CheckCircle2 size={16} className="text-emerald-600 flex-shrink-0" />
+                  <span className="text-emerald-800 text-xs">Reported progress is consistent with available visual observations.</span>
+                </div>
+              )}
+
+              {/* Real Evidence Locker Preview */}
+              <div className="evidence-preview-box">
+                <span className="section-eyebrow">ATTACHED EVIDENCE & AUDIT LOGS</span>
+                <div className="evidence-files-list">
+                  {caseState?.evidenceItems && caseState.evidenceItems.length > 0 ? (
+                    caseState.evidenceItems.slice(0, 3).map((ev) => (
+                      <div key={ev.id} className="evidence-item-row flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <FileText size={13} style={{ color: 'var(--brand)' }} />
+                          <span className="evidence-file-title">{ev.title}</span>
+                        </div>
+                        <span className="evidence-file-status">{ev.status || 'Verified'}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="evidence-empty-note text-xs text-stone-500">
+                      No photographic or drone files attached yet. Official inspection pending.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </section>
+          </div>
+        );
+      })()}
+
+      {/* ════════════════════════════════════════════════════════════════════════
+          9 & 10. CITIZEN INTELLIGENCE STREAM & ALERT CENTRE
+      ════════════════════════════════════════════════════════════════════════ */}
+      <div className="command-bottom-stream-grid">
+        {/* 9. CITIZEN INTELLIGENCE STREAM */}
+        <section className="panel citizen-stream-panel" id="citizen-observations-panel">
+          <div className="panel-head flex justify-between items-center">
+            <div>
+              <span className="eyebrow">{hi ? 'नागरिक सहभागिता' : 'CITIZEN INTELLIGENCE'}</span>
+              <h3 style={{ fontSize: '16px', fontWeight: 800, margin: 0 }}>Live Citizen Observations</h3>
+              <small style={{ color: 'var(--muted)', fontSize: '11px' }}>Ground-truth reports received from citizens</small>
+            </div>
+            <MessageSquare size={16} style={{ color: 'var(--brand)' }} />
+          </div>
+
+          <div className="citizen-observations-list">
+            {complaints && complaints.length > 0 ? (
+              complaints.map((c, i) => (
+                <div
+                  key={c.tokenId || i}
+                  className="citizen-obs-item cursor-pointer"
+                  onClick={() => {
+                    if (c.projectId) navigate(`/official/risk/${c.projectId}`);
+                  }}
+                >
+                  <div className="obs-header flex justify-between items-center">
+                    <span className="obs-token">{c.tokenId || `#CIT-VNS-${1000 + i}`}</span>
+                    <span className={`obs-status-tag ${c.status?.toLowerCase() || 'submitted'}`}>
+                      {c.status || 'NEW'}
+                    </span>
+                  </div>
+                  <strong className="obs-project-id">{c.projectId} · {c.projectName || c.district}</strong>
+                  <p className="obs-text">"{c.observation || c.issueType}"</p>
+                  <div className="obs-footer flex justify-between items-center text-xs">
+                    <span>📍 {c.district}, {c.state}</span>
+                    <span className="obs-view-link">View in Project Intelligence →</span>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="empty-obs-state text-xs text-stone-500 py-6 text-center">
+                <MessageSquare size={24} style={{ margin: '0 auto 6px', opacity: 0.4 }} />
+                <span>No citizen grievances submitted for current selection.</span>
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* 10. ALERT CENTRE ("ATTENTION REQUIRED") */}
+        <section className="panel alert-centre-panel">
+          <div className="panel-head flex justify-between items-center">
+            <div>
+              <span className="eyebrow">{hi ? 'तात्कालिक ध्यान आवश्यक' : 'ALERT CENTRE'}</span>
+              <h3 style={{ fontSize: '16px', fontWeight: 800, margin: 0 }}>Attention Required</h3>
+              <small style={{ color: 'var(--muted)', fontSize: '11px' }}>Live system signals requiring administrative decision</small>
+            </div>
+            <AlertCircle size={16} style={{ color: '#C85A32' }} />
+          </div>
+
+          <div className="alert-feed-list">
+            {liveAlerts.map(alert => (
+              <div
+                key={alert.id}
+                className={`alert-feed-item ${alert.severity}`}
+                onClick={() => {
+                  if (alert.projectId) navigate(`/official/risk/${alert.projectId}`);
+                }}
+              >
+                <div className="alert-item-header flex justify-between items-center">
+                  <span className={`alert-type-chip ${alert.severity}`}>{alert.type}</span>
+                  <small className="alert-time">{alert.time}</small>
+                </div>
+                <strong className="alert-title">{alert.title}</strong>
+                <p className="alert-desc">{alert.desc}</p>
+                <div className="alert-action-prompt flex items-center gap-1 text-xs">
+                  <span>Take Action in Case Register</span>
+                  <ChevronRight size={12} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
+
+      {/* ════════════════════════════════════════════════════════════════════════
+          13 & 14. EVIDENCE-BASED WORKFLOW & DATA SOURCE TRANSPARENCY
+      ════════════════════════════════════════════════════════════════════════ */}
+      <section className="panel workflow-governance-panel">
+        <div className="panel-head">
+          <div>
+            <span className="eyebrow">{hi ? 'प्रशासनिक कार्यप्रवाह एवं सत्यनिष्ठा' : 'GOVERNANCE & AUDIT ARCHITECTURE'}</span>
+            <h3 style={{ fontSize: '16px', fontWeight: 800, margin: 0 }}>Evidence-Based Decision-Support Workflow</h3>
+          </div>
+          <span className="transparency-tag">Demo / Illustrative Data</span>
+        </div>
+
+        {/* Workflow Steps */}
+        <div className="workflow-steps-diagram">
+          <div className="step-node">
+            <span className="step-num">1</span>
+            <strong>SOURCE DATA</strong>
+            <small>PFMS & eSAKSHI Feeds</small>
+          </div>
+          <ChevronRight size={18} className="step-arrow" />
+          <div className="step-node">
+            <span className="step-num">2</span>
+            <strong>RISK DETECTION</strong>
+            <small>6-Factor Scoring Formula</small>
+          </div>
+          <ChevronRight size={18} className="step-arrow" />
+          <div className="step-node">
+            <span className="step-num">3</span>
+            <strong>EXPLAINABILITY</strong>
+            <small>Factor Weight Breakdown</small>
+          </div>
+          <ChevronRight size={18} className="step-arrow" />
+          <div className="step-node">
+            <span className="step-num">4</span>
+            <strong>EVIDENCE LOCKER</strong>
+            <small>Satellite, Drone & MB Books</small>
+          </div>
+          <ChevronRight size={18} className="step-arrow" />
+          <div className="step-node">
+            <span className="step-num">5</span>
+            <strong>OFFICIAL AUDIT</strong>
+            <small>Human Decision & Closure</small>
+          </div>
+        </div>
+
+        {/* Data Source Transparency Banner */}
+        <div className="transparency-notice-box">
+          <Info size={15} style={{ color: 'var(--brand)', flexShrink: 0, marginTop: 2 }} />
+          <div>
+            <strong>Data Source Transparency Notice:</strong>
+            <p style={{ margin: 0, fontSize: '11px', color: 'var(--muted)', lineHeight: 1.45 }}>
+              Current project records and financial ledgers are connected via the PRAHARI Supabase Cloud Architecture.
+              Signals are rule-based and AI-estimated indicators designed to assist authorized district and state officials.
+              Under MoSPI guidelines, all administrative sanctions, payment holds, or vigilance referrals require official on-site verification.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* ════════════════════════════════════════════════════════════════════════
+          MODALS: EVIDENCE DOCKET EXPORT & FIELD DIRECTIVE DISPATCH
+      ════════════════════════════════════════════════════════════════════════ */}
+      {docketModalProject && (
+        <div className="modal-overlay" onClick={() => setDocketModalProject(null)}>
+          <div className="modal-container max-w-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <FileText size={18} style={{ color: 'var(--brand)' }} />
+                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 800 }}>Administrative Evidence Docket</h3>
+              </div>
+              <button type="button" onClick={() => setDocketModalProject(null)} className="modal-close-btn">
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="modal-body">
+              <pre className="docket-text-preview">
+                {generateEvidenceSummaryText(docketModalProject, getCase(docketModalProject.id))}
+              </pre>
+            </div>
+
+            <div className="modal-footer flex justify-between items-center">
+              <span className="text-xs text-stone-500">Official oversight document for {docketModalProject.id}</span>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  className="secondary-action"
+                  onClick={() => {
+                    navigator.clipboard.writeText(generateEvidenceSummaryText(docketModalProject, getCase(docketModalProject.id)));
+                    setDocketCopied(true);
+                    setTimeout(() => setDocketCopied(false), 3000);
+                  }}
+                >
+                  {docketCopied ? <Check size={14} /> : <Copy size={14} />}
+                  <span>{docketCopied ? 'Copied to Clipboard' : 'Copy Text'}</span>
+                </button>
+                <button
+                  type="button"
+                  className="primary-action"
+                  onClick={() => setDocketModalProject(null)}
+                >
+                  <span>Close</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Field Directive Assignment Modal */}
       {dispatchModalProject && (
         <InvestigationAssignmentModal
           project={dispatchModalProject}
@@ -826,7 +1295,7 @@ export default function OfficialDashboard() {
             assignCase(
               dispatchModalProject.id,
               assignmentData,
-              user?.name || authorityLabel,
+              user?.name || getRoleLabel(user?.role || 'district_authority'),
               user?.role || 'district_authority'
             );
             setDispatchModalProject(null);

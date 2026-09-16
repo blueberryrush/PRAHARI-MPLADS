@@ -87,3 +87,37 @@ class InvestigationActionResponse(BaseModel):
     new_status: str
     action_logged: bool
     audit_hash: str
+
+
+# ─── Cloud Citizen Observation ───────────────────────────────────────────────
+class CitizenObservationRequest(BaseModel):
+    work_id: str
+    ground_status: str
+    observation_text: str
+    evidence_photo_url: Optional[str] = None
+    user_latitude: Optional[float] = None
+    user_longitude: Optional[float] = None
+
+
+# ─── Investigation Decision ───────────────────────────────────────────────────
+class InvestigationDecisionRequest(BaseModel):
+    work_id: str
+    decision: str  # e.g., 'VERIFIED_ESCALATED', 'RESOLVED_CLEARED', 'APPROVE_CLOSE', 'ESCALATE_VIGILANCE'
+    officer_name: Optional[str] = "District Magistrate / Investigation Officer"
+    note: Optional[str] = ""
+
+
+# ─── Role-Based Authentication & Onboarding ──────────────────────────────────
+class OfficerLoginRequest(BaseModel):
+    email: str
+    password: str
+    target_portal: str  # 'COMMAND_CENTER' or 'INVESTIGATION_CENTER'
+
+
+class OfficerOnboardingRequest(BaseModel):
+    officer_id: int
+    govt_id_number: str
+    id_proof_data: Optional[str] = None
+    new_password: str
+
+

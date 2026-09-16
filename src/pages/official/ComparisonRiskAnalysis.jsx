@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { projects, benchmarks } from '../../data/mockData';
+import { useCaseContext } from '../../contexts/CaseContext';
+import { projects as fallbackProjects, benchmarks } from '../../data/mockData';
 import { findRedFlagScenarios, compareProjects } from '../../data/aiEngine';
 import AnimatedCounter from '../../components/AnimatedCounter';
 import { GitCompare, AlertTriangle, CheckCircle2, Flag, TrendingUp, ArrowRight, ShieldCheck, DollarSign, Clock } from 'lucide-react';
@@ -12,18 +13,23 @@ const stagger = { visible: { transition: { staggerChildren: 0.08 } } };
 
 export default function ComparisonRiskAnalysis() {
   const { t, lang } = useLanguage();
+  const { projects: cloudProjects } = useCaseContext();
+  const activeProjects = useMemo(() => {
+    return (cloudProjects && cloudProjects.length > 0) ? cloudProjects : fallbackProjects;
+  }, [cloudProjects]);
+
   const hi = lang === 'hi';
-  const redFlagScenarios = useMemo(() => findRedFlagScenarios(projects), []);
-  const [selectedA, setSelectedA] = useState('PRJ001');
-  const [selectedB, setSelectedB] = useState('PRJ002');
+  const redFlagScenarios = useMemo(() => findRedFlagScenarios(activeProjects), [activeProjects]);
+  const [selectedA, setSelectedA] = useState(() => activeProjects[0]?.id || 'UP-VAR-2024-001');
+  const [selectedB, setSelectedB] = useState(() => activeProjects[1]?.id || 'UP-VAR-2024-002');
 
   const manualComparison = useMemo(() => {
     if (!selectedA || !selectedB || selectedA === selectedB) return null;
-    const pA = projects.find(p => p.id === selectedA);
-    const pB = projects.find(p => p.id === selectedB);
+    const pA = activeProjects.find(p => p.id === selectedA || p.work_id === selectedA);
+    const pB = activeProjects.find(p => p.id === selectedB || p.work_id === selectedB);
     if (!pA || !pB) return null;
     return compareProjects(pA, pB);
-  }, [selectedA, selectedB]);
+  }, [selectedA, selectedB, activeProjects]);
 
   const totalRedFlags = redFlagScenarios.length;
   const costFlags = redFlagScenarios.filter(s => s.costRedFlag).length;

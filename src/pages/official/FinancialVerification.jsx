@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { projects } from '../../data/mockData';
+import { useCaseContext } from '../../contexts/CaseContext';
+import { projects as fallbackProjects } from '../../data/mockData';
 import { detectAnomalies } from '../../data/aiEngine';
 import { RiskBadge } from '../../components/RiskBadge';
 import AnimatedCounter from '../../components/AnimatedCounter';
@@ -21,14 +22,19 @@ import { useLanguage } from '../../contexts/LanguageContext';
 export default function FinancialVerification() {
   const { user } = useAuth();
   const { t } = useLanguage();
+  const { projects: cloudProjects } = useCaseContext();
+  const activeProjects = useMemo(() => {
+    return (cloudProjects && cloudProjects.length > 0) ? cloudProjects : fallbackProjects;
+  }, [cloudProjects]);
+
   const navigate = useNavigate();
 
   const [filter, setFilter] = useState('all');
   const [selectedId, setSelectedId] = useState(null);
 
   const analyzed = useMemo(
-    () => detectAnomalies(projects),
-    []
+    () => detectAnomalies(activeProjects),
+    [activeProjects]
   );
 
   /* -----------------------------

@@ -4,22 +4,24 @@ import { motion } from 'framer-motion';
 import { ArrowLeft, ArrowRight, Building2, Eye, EyeOff, Globe2, MapPin, SearchCheck, ShieldCheck, UserRound } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
+import { loginOfficer } from '../api/client';
 import SpeakerButton from '../components/SpeakerButton';
 
 export default function LoginPage() {
   const { lang, switchLanguage } = useLanguage();
-  const { login } = useAuth();
+  const { login, setAuthOfficer } = useAuth();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const requestedRole = params.get('role');
-  const [role,setRole] = useState(requestedRole === 'citizen' ? 'citizen' : 'official');
-  const [officialRole,setOfficialRole] = useState(requestedRole === 'investigator' ? 'investigator' : 'district_authority');
-  const [email,setEmail]=useState('');
-  const [password,setPassword]=useState('');
-  const [show,setShow]=useState(false);
-  const [error,setError]=useState('');
-  const hi=lang==='hi';
-  useEffect(()=>{
+  const [role, setRole] = useState(requestedRole === 'citizen' ? 'citizen' : 'official');
+  const [officialRole, setOfficialRole] = useState(requestedRole === 'investigator' ? 'investigator' : 'district_authority');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [show, setShow] = useState(false);
+  const [error, setError] = useState('');
+  const hi = lang === 'hi';
+
+  useEffect(() => {
     if (params.get('role') === 'citizen') {
       setRole('citizen');
     } else if (params.get('role') === 'investigator') {
@@ -29,17 +31,46 @@ export default function LoginPage() {
       setRole('official');
       setOfficialRole('district_authority');
     }
-  },[params]);
+  }, [params]);
 
-  const submit=e=>{
+  const submit = async (e) => {
     e.preventDefault();
-    if(!email||!password){
-      setError(hi?'ईमेल और पासवर्ड भरें':'Enter email and password');
+    if (!email || !password) {
+      setError(hi ? 'ईमेल और पासवर्ड भरें' : 'Enter email and password');
       return;
     }
-    const finalRole=role==='official'?officialRole:'citizen';
-    const r=login(email,password,finalRole);
-    if(r.success) {
+    setError('');
+    const finalRole = role === 'official' ? officialRole : 'citizen';
+
+    if (role === 'official') {
+      const targetPortal = officialRole === 'investigator' ? 'INVESTIGATION_CENTER' : 'COMMAND_CENTER';
+      try {
+        const res = await loginOfficer(email, password, targetPortal);
+        if (!res.ok) {
+          setError(res.error || (hi ? 'अमान्य क्रेडेंशियल्स।' : 'Authentication failed.'));
+          return;
+        }
+        if (res.data.requires_onboarding) {
+          navigate('/');
+          return;
+        }
+        if (res.data.token && res.data.officer) {
+          setAuthOfficer(res.data.officer, res.data.token);
+          if (targetPortal === 'COMMAND_CENTER') {
+            navigate('/official/dashboard');
+          } else {
+            navigate('/official/investigations');
+          }
+          return;
+        }
+      } catch (err) {
+        setError(err.message || 'Login failed');
+        return;
+      }
+    }
+
+    const r = login(email, password, finalRole);
+    if (r.success) {
       if (finalRole === 'investigator') {
         navigate('/official/investigations');
       } else if (finalRole === 'citizen') {
