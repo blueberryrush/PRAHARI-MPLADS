@@ -149,3 +149,19 @@ human oversight authorities. Risk scores reflect review priority, not statistica
 proof of fraud. Human physical verification is mandatory before administrative action.
 ================================================================================`;
 }
+
+export function downloadEvidenceReport(project, caseData = null) {
+  if (!project) return;
+  const text = generateEvidenceSummaryText(project, caseData);
+  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  const pId = project.id || project.work_id || 'PRJ';
+  link.download = `PRAHARI_EVIDENCE_DOCKET_${pId}.txt`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+

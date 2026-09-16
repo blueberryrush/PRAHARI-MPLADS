@@ -1279,58 +1279,71 @@ export default function CitizenDashboard() {
               </div>
 
               {/* Nearby Projects Grid */}
-              <div className="roster-grid" style={{ marginTop: 4 }}>
+              <div
+                className="roster-grid"
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+                  gap: '18px',
+                  marginTop: '16px',
+                }}
+              >
                 {nearbyProjectsList.map((p) => {
                   const riskInfo = getProjectRisk(p);
                   const pId = p.id || p.work_id;
                   const pName = p.name || p.work_name;
+                  const pSector = p.sector || p.category || 'Public Infrastructure';
+                  const pLocation = `${p.district || p.constituency || 'Varanasi'}, ${p.state || 'Uttar Pradesh'}`;
                   const sanctionedLakhs =
                     p.sanctioned_amount_lakhs != null
                       ? Number(p.sanctioned_amount_lakhs)
                       : (p.sanctionedAmount || 0) / 100000;
                   const progressPct = p.physicalProgress ?? p.reported_progress_pct ?? 0;
+                  const statusLabel = p.audit_status || p.status || t('citizen_in_progress');
 
                   return (
                     <div
                       key={pId}
-                      className="roster-card"
+                      className="roster-card near-me-project-card panel"
                       style={{
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                        position: 'relative',
+                        background: 'var(--surface)',
+                        border: '1px solid var(--border)',
+                        borderRadius: '12px',
+                        padding: '20px',
                         display: 'flex',
                         flexDirection: 'column',
-                        gap: 8,
-                        padding: 16,
-                      }}
-                      onClick={() => {
-                        selectProjectWithReset(p);
+                        justifyContent: 'space-between',
+                        gap: '14px',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                        transition: 'box-shadow 0.2s ease, border-color 0.2s ease',
                       }}
                     >
-                      {/* Top bar with distance and risk badge */}
+                      {/* Top Header: Distance Pill + Risk Badge */}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
                         <span
                           style={{
-                            fontSize: 10,
+                            fontSize: '0.78rem',
                             fontWeight: 800,
-                            color: '#2563eb',
+                            color: '#1d4ed8',
                             background: '#eff6ff',
-                            padding: '3px 8px',
-                            borderRadius: 6,
+                            padding: '4px 10px',
+                            borderRadius: '6px',
                             display: 'inline-flex',
                             alignItems: 'center',
-                            gap: 4,
+                            gap: '5px',
                             border: '1px solid #bfdbfe',
                           }}
                         >
-                          <MapPin size={11} /> {p.distanceFormatted}
+                          <MapPin size={13} /> {p.distanceFormatted || 'Nearby'}
                         </span>
+
+                        {/* Risk Level Badge */}
                         <span
                           style={{
-                            fontSize: 9,
+                            fontSize: '0.78rem',
                             fontWeight: 800,
-                            padding: '3px 7px',
-                            borderRadius: 5,
+                            padding: '4px 10px',
+                            borderRadius: '6px',
                             background:
                               riskInfo.level === 'high'
                                 ? '#fee2e2'
@@ -1343,65 +1356,181 @@ export default function CitizenDashboard() {
                                 : riskInfo.level === 'medium'
                                 ? '#92400e'
                                 : '#166534',
+                            border:
+                              riskInfo.level === 'high'
+                                ? '1px solid #fecaca'
+                                : riskInfo.level === 'medium'
+                                ? '1px solid #fde68a'
+                                : '1px solid #bbf7d0',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
                           }}
                         >
-                          {riskInfo.text}
+                          {riskInfo.level === 'high' && '🔴 High Risk'}
+                          {riskInfo.level === 'medium' && '🟡 Medium Risk'}
+                          {riskInfo.level === 'low' && '🟢 Low Risk'}
                         </span>
                       </div>
 
-                      {/* Title & Sector */}
-                      <div className="roster-card-body" style={{ flex: 1 }}>
-                        <span className="roster-id" style={{ display: 'block', fontSize: 10, color: 'var(--muted)', marginBottom: 3 }}>
-                          {pId} · {p.sector || p.category}
-                        </span>
-                        <strong style={{ fontSize: 13, display: 'block', color: 'var(--ink)', lineHeight: 1.35, marginBottom: 6 }}>
+                      {/* Main Project Details */}
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                          <span
+                            style={{
+                              fontSize: '0.72rem',
+                              fontWeight: 800,
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.04em',
+                              color: 'var(--brand)',
+                              background: 'var(--primary-bg, rgba(5,150,105,0.08))',
+                              padding: '2px 8px',
+                              borderRadius: '4px',
+                            }}
+                          >
+                            {pSector}
+                          </span>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--muted)', fontFamily: 'monospace' }}>
+                            {pId}
+                          </span>
+                        </div>
+
+                        <h4
+                          style={{
+                            fontSize: '1.02rem',
+                            fontWeight: 700,
+                            color: 'var(--ink)',
+                            lineHeight: 1.4,
+                            margin: '0 0 10px',
+                          }}
+                        >
                           {pName}
-                        </strong>
-                        <div className="roster-meta" style={{ display: 'flex', gap: 10, fontSize: 11, color: 'var(--muted)', marginBottom: 8, flexWrap: 'wrap' }}>
-                          <span>📍 {p.district || p.constituency}, {p.state}</span>
-                          <span>₹{sanctionedLakhs.toFixed(1)}L</span>
-                          <span className={`roster-status ${p.status || 'in_progress'}`}>
-                            {p.audit_status || p.status || t('citizen_in_progress')}
+                        </h4>
+
+                        <div
+                          style={{
+                            display: 'flex',
+                            flexWrap: 'wrap',
+                            gap: '12px',
+                            fontSize: '0.8rem',
+                            color: 'var(--muted)',
+                            marginBottom: '12px',
+                          }}
+                        >
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                            <MapPin size={13} style={{ color: 'var(--brand)' }} />
+                            {pLocation}
+                          </span>
+                          <span style={{ fontWeight: 600, color: 'var(--ink)' }}>
+                            ₹{sanctionedLakhs.toFixed(1)} Lakhs
+                          </span>
+                          <span
+                            style={{
+                              padding: '1px 8px',
+                              borderRadius: '999px',
+                              fontSize: '0.72rem',
+                              fontWeight: 700,
+                              background: 'var(--bg-subtle, #f5f5f4)',
+                              color: 'var(--muted)',
+                              border: '1px solid var(--line)',
+                            }}
+                          >
+                            {statusLabel}
                           </span>
                         </div>
 
                         {/* Progress Bar */}
-                        <div className="roster-progress-bar" style={{ marginBottom: 4 }}>
-                          <i style={{ width: `${progressPct}%` }} />
+                        <div style={{ marginBottom: '4px' }}>
+                          <div
+                            style={{
+                              height: '7px',
+                              background: 'var(--line)',
+                              borderRadius: '999px',
+                              overflow: 'hidden',
+                            }}
+                          >
+                            <div
+                              style={{
+                                width: `${Math.min(100, Math.max(0, progressPct))}%`,
+                                height: '100%',
+                                background: riskInfo.level === 'high' ? '#C85A32' : '#059669',
+                                borderRadius: '999px',
+                                transition: 'width 0.4s ease',
+                              }}
+                            />
+                          </div>
                         </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--muted)' }}>
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--muted)' }}>
                           <span>
-                            {progressPct}% {t('common_physical').toLowerCase()} {t('common_progress').toLowerCase()}
+                            {progressPct}% {hi ? 'भौतिक प्रगति' : 'Physical Progress'}
                           </span>
-                          {p.estimatedSiteProgress != null && p.estimatedSiteProgress !== progressPct && (
-                            <span style={{ color: '#c2410c', fontWeight: 600 }}>
-                              AI Est: {p.estimatedSiteProgress}%
+                          {p.progress_discrepancy_points > 10 && (
+                            <span style={{ color: '#c2410c', fontWeight: 700, fontSize: '0.72rem' }}>
+                              ⚠️ {hi ? 'विसंगति संकेत' : 'Discrepancy Signal'}
                             </span>
                           )}
                         </div>
                       </div>
 
                       {/* Card Action Buttons */}
-                      <div style={{ display: 'flex', gap: 6, marginTop: 4, paddingTop: 10, borderTop: '1px solid var(--line)' }}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          gap: '10px',
+                          paddingTop: '14px',
+                          borderTop: '1px solid var(--line)',
+                          alignItems: 'center',
+                        }}
+                      >
                         <button
+                          type="button"
                           className="primary-action"
-                          style={{ flex: 1, height: 32, fontSize: 10, background: '#059669', borderColor: '#059669' }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            selectProjectWithReset(p);
+                          style={{
+                            flex: 1,
+                            height: '36px',
+                            fontSize: '0.82rem',
+                            fontWeight: 700,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '6px',
+                            background: '#059669',
+                            borderColor: '#059669',
+                            borderRadius: '8px',
+                            cursor: 'pointer',
                           }}
-                        >
-                          Select & Report
-                        </button>
-                        <button
-                          className="secondary-action"
-                          style={{ height: 32, fontSize: 10, padding: '0 10px' }}
                           onClick={(e) => {
                             e.stopPropagation();
                             navigate(`/citizen/project/${pId}`);
                           }}
                         >
-                          Dossier <ArrowRight size={12} />
+                          View Details <ArrowRight size={14} />
+                        </button>
+
+                        <button
+                          type="button"
+                          className="secondary-action"
+                          style={{
+                            height: '36px',
+                            fontSize: '0.78rem',
+                            fontWeight: 600,
+                            padding: '0 12px',
+                            borderRadius: '8px',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            whiteSpace: 'nowrap',
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            selectProjectWithReset(p);
+                            setGrievanceOpen(true);
+                          }}
+                          title={hi ? 'स्थल अवलोकन दर्ज करें' : 'Report site observation'}
+                        >
+                          <Camera size={13} /> {hi ? 'अवलोकन' : 'Report'}
                         </button>
                       </div>
                     </div>
