@@ -117,7 +117,7 @@ export default function AuthModal({
   };
 
   // ─── Quick Demo 1-Click Access ──────────────────────────────────────────────
-  const handleDemoLogin = async (demoType) => {
+  const handleDemoLogin = (demoType) => {
     setError('');
     setSuccessMsg('');
     setLoading(true);
@@ -152,23 +152,12 @@ export default function AuthModal({
     setEmail(demoEmail);
     setPassword(demoPass);
 
-    try {
-      const res = await loginOfficer(demoEmail, demoPass, portal);
-      if (res?.ok && res?.data?.token && res?.data?.officer) {
-        setAuthOfficer(res.data.officer, res.data.token);
-      } else {
-        login(demoEmail, demoPass, role);
-      }
-    } catch {
-      login(demoEmail, demoPass, role);
-    }
-
+    // Instant demo session — do not wait for a second Sign In click or a hung API.
+    login(demoEmail, demoPass, role);
     setSuccessMsg(hi ? 'सत्यापन सफल!' : 'Authentication successful!');
     setLoading(false);
-    setTimeout(() => {
-      if (onClose) onClose();
-      navigate(targetRoute);
-    }, 300);
+    if (onClose) onClose();
+    navigate(targetRoute);
   };
 
   const isCommand = activePortal === 'COMMAND_CENTER';

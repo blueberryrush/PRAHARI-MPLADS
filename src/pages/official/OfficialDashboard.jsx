@@ -37,6 +37,7 @@ import InvestigationAssignmentModal from '../../components/investigation/Investi
 import { exportProjectsToCSV, generateEvidenceSummaryText } from '../../utils/reportExport';
 import { calculateRiskScore } from '../../data/aiEngine';
 import { projects as mockProjects, agencies, states } from '../../data/mockData';
+import { formatLakhs, safeNumber } from '../../utils/demoFormat';
 
 // ─── Primary Signal Resolver ──────────────────────────────────────────────────
 function resolvePrimarySignal(p, finProg, physProg) {
@@ -242,10 +243,18 @@ export default function OfficialDashboard() {
     const obsCount = complaints ? complaints.length : 0;
 
     const exposureLakhs = scoredProjects
-      .filter(p => p.riskScore >= 70)
-      .reduce((acc, p) => acc + (p.sanctionedAmount / 100000 || 0), 0);
+      .filter(p => safeNumber(p.riskScore, 0) >= 70)
+      .reduce((acc, p) => acc + (safeNumber(p.sanctionedAmount, 0) / 100000), 0);
 
-    return { total, active, highPriority, mediumPriority, requiringVerif, obsCount, exposureLakhs };
+    return {
+      total: safeNumber(total, 0),
+      active: safeNumber(active, 0),
+      highPriority: safeNumber(highPriority, 0),
+      mediumPriority: safeNumber(mediumPriority, 0),
+      requiringVerif: safeNumber(requiringVerif, 0),
+      obsCount: safeNumber(obsCount, 0),
+      exposureLakhs: safeNumber(exposureLakhs, 0),
+    };
   }, [scoredProjects, complaints, getCase]);
 
   // ── 7. Signal Counts for "Why Flagged" Matrix ──
@@ -364,7 +373,7 @@ export default function OfficialDashboard() {
   }, [activePool]);
 
   return (
-    <div className="page-content command-page">
+    <div className="page-content command-page overflow-x-hidden">
       {/* ════════════════════════════════════════════════════════════════════════
           COMMAND CENTRE HEADER & OPERATIONAL STATUS BAR
       ════════════════════════════════════════════════════════════════════════ */}
@@ -515,7 +524,7 @@ export default function OfficialDashboard() {
               key={item.key}
               role="button"
               tabIndex={0}
-              className={`kpi-panel command-kpi-card ${isSelected ? 'active' : ''}`}
+              className={`kpi-panel command-kpi-card cursor-pointer transition-all hover:opacity-90 ${isSelected ? 'active' : ''}`}
               onClick={() => setActiveKpiFilter(prev => prev === item.key ? null : item.key)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
@@ -602,7 +611,7 @@ export default function OfficialDashboard() {
           )}
 
           {/* Ranked Table */}
-          <div className="priority-table-container">
+          <div className="priority-table-container custom-scrollbar overflow-y-auto">
             {filteredQueue.length === 0 ? (
               <div className="empty-queue-state">
                 <ShieldAlert size={36} style={{ color: 'var(--muted)', margin: '0 auto 10px' }} />
@@ -629,8 +638,8 @@ export default function OfficialDashboard() {
                   {filteredQueue.map((p, idx) => {
                     const isSelected = p.id === selectedProjectId;
                     const SignalIcon = p.primarySignal.icon || AlertTriangle;
-                    const sanctionedLakhs = (p.sanctionedAmount / 100000).toFixed(1);
-                    const spentLakhs = (p.spentAmount / 100000).toFixed(1);
+                    const sanctionedLakhs = formatLakhs(safeNumber(p.sanctionedAmount, 0) / 100000);
+                    const spentLakhs = formatLakhs(safeNumber(p.spentAmount, 0) / 100000);
 
                     return (
                       <tr

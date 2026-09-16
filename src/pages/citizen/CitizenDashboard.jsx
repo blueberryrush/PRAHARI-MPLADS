@@ -26,6 +26,7 @@ import IndiaDrilldownMap from '../../components/IndiaDrilldownMap';
 import CivicMap from '../../components/map/CivicMap';
 import ErrorBoundary from '../../components/common/ErrorBoundary';
 import { generateCitizenTrackingHash, readImageAsDataUrl, formatLakhs, safeNumber } from '../../utils/demoFormat';
+import { GHAZIABAD_DEMO_COORDS, getNearbyProjects, getCoordinatesForDistrict } from '../../utils/geo';
 
 // Sector color classes for roster pins
 const SECTOR_COLORS = {
@@ -472,7 +473,7 @@ export default function CitizenDashboard() {
   };
 
   return (
-    <div className="page-content citizen-page">
+    <div className="page-content citizen-page flex flex-col h-[calc(100vh-80px)] p-6 gap-6">
       {obsToast && (
         <div className="obs-toast" role="status">
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
@@ -491,9 +492,6 @@ export default function CitizenDashboard() {
           <span className="eyebrow">{t('citizen_eyebrow')}</span>
           <h2>{t('citizen_title')}</h2>
           <p>{t('citizen_subtitle')}</p>
-          <button type="button" className="return-home-btn" onClick={() => navigate('/')} style={{ marginTop: 12 }}>
-            <ArrowRight size={14} style={{ transform: 'rotate(180deg)' }} /> {hi ? 'होम पर लौटें' : 'Return Home'}
-          </button>
         </div>
         <SpeakerButton text={`${t('citizen_title')} ${t('citizen_subtitle')}`} />
       </div>
@@ -618,25 +616,15 @@ export default function CitizenDashboard() {
 
           {/* ── Split Layout: Explore Works Left Sidebar + India Geographic Map ── */}
           <div
-            className="citizen-explorer-layout"
+            className="citizen-explorer-layout max-w-[1600px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 p-4 h-[calc(100vh-180px)] min-h-[600px] w-full flex-1"
             id="works"
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
-              gap: 16,
-              alignItems: 'start',
-            }}
           >
             {/* ── LEFT SIDEBAR: Explore Works Roster & Detail Drawer ── */}
             <div
-              className="citizen-works-sidebar panel"
+              className="citizen-works-sidebar panel lg:col-span-4 flex flex-col h-full overflow-hidden"
               style={{
-                display: 'flex',
-                flexDirection: 'column',
                 gap: 12,
-                maxHeight: '620px',
                 padding: '16px',
-                overflow: 'hidden',
               }}
             >
               {/* Sidebar Header */}
@@ -691,14 +679,13 @@ export default function CitizenDashboard() {
 
               {/* Scrollable Works List with Expandable Detail Drawers */}
               <div
-                className="citizen-works-list custom-scrollbar"
+                className="citizen-works-list custom-scrollbar flex-1 overflow-y-auto"
                 style={{
                   display: 'flex',
                   flexDirection: 'column',
                   gap: 8,
-                  overflowY: 'auto',
                   paddingRight: 4,
-                  flex: 1,
+                  minHeight: 0,
                 }}
               >
                 {filtered.length === 0 ? (
@@ -953,30 +940,32 @@ export default function CitizenDashboard() {
             </div>
 
             {/* ── RIGHT COLUMN: India Geographic Map with Boundary Drilldown ── */}
-            <div className="citizen-map panel" style={{ margin: 0 }}>
-              <ErrorBoundary fallbackTitle="Geographic Map Boundary Viewer">
-                <IndiaDrilldownMap
-                  projects={filtered}
-                  selectedState={state}
-                  onStateChange={(st) => {
-                    setState(st);
-                    setSelectedDistrict('');
-                  }}
-                  onSelectState={(st) => {
-                    setState(st);
-                    setSelectedDistrict('');
-                  }}
-                  onDistrictSelect={(dist) => {
-                    setSelectedDistrict(dist);
-                  }}
-                  userLocation={userLocation}
-                  nearbyProjects={userLocation ? nearbyProjectsList : []}
-                  onProjectSelect={(proj) => {
-                    setSelectedProjectForDetails(proj);
-                    selectProjectWithReset(proj);
-                  }}
-                />
-              </ErrorBoundary>
+            <div className="citizen-map panel lg:col-span-8 relative h-[500px] lg:h-full w-full rounded-2xl overflow-hidden border border-stone-200 flex flex-col" style={{ margin: 0 }}>
+              <div style={{ height: '100%', width: '100%', flex: 1, minHeight: 0 }}>
+                <ErrorBoundary fallbackTitle="Geographic Map Boundary Viewer">
+                  <IndiaDrilldownMap
+                    projects={filtered}
+                    selectedState={state}
+                    onStateChange={(st) => {
+                      setState(st);
+                      setSelectedDistrict('');
+                    }}
+                    onSelectState={(st) => {
+                      setState(st);
+                      setSelectedDistrict('');
+                    }}
+                    onDistrictSelect={(dist) => {
+                      setSelectedDistrict(dist);
+                    }}
+                    userLocation={userLocation}
+                    nearbyProjects={userLocation ? nearbyProjectsList : []}
+                    onProjectSelect={(proj) => {
+                      setSelectedProjectForDetails(proj);
+                      selectProjectWithReset(proj);
+                    }}
+                  />
+                </ErrorBoundary>
+              </div>
             </div>
           </div>
         </>

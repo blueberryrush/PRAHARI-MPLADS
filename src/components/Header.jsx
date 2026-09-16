@@ -96,15 +96,17 @@ export default function Header({ title }) {
       <div className="topbar-title">
         <span className="eyebrow">{workspace}</span>
         <h1>{title || workspace}</h1>
-        <button
-          type="button"
-          className="return-home-btn"
-          onClick={() => navigate('/')}
-          style={{ marginTop: 8 }}
-        >
-          <ArrowLeft size={14} />
-          {lang === 'hi' ? 'होम पर लौटें' : 'Return Home'}
-        </button>
+        {!location.pathname.startsWith('/citizen') && (
+          <button
+            type="button"
+            className="return-home-btn cursor-pointer transition-all hover:opacity-90"
+            onClick={() => navigate('/')}
+            style={{ marginTop: 8 }}
+          >
+            <ArrowLeft size={14} />
+            {lang === 'hi' ? 'होम पर लौटें' : 'Return Home'}
+          </button>
+        )}
       </div>
       <div className="topbar-actions">
         {/* Global Search Bar with Live Filter Dropdown */}

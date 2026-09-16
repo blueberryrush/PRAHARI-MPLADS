@@ -227,7 +227,7 @@ export default function CivicMap({
     setTimeout(() => {
       map.invalidateSize();
       setIsMapReady(true);
-    }, 100);
+    }, 200);
 
     return () => {
       map.remove();

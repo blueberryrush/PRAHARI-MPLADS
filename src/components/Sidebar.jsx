@@ -99,7 +99,7 @@ export default function Sidebar() {
               to={to}
               end={!!end}
               onClick={close}
-              className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
+              className={({ isActive }) => `sidebar-link cursor-pointer transition-all ${isActive ? 'active' : ''}`}
             >
               <Icon size={18} />
               <span>{to === '/' ? (lang === 'hi' ? 'होम पर लौटें' : 'Return Home') : t(labelKey)}</span>

@@ -250,7 +250,13 @@ export default function InvestigationCentre() {
     resetCaseState();
     const prefix = location.pathname.startsWith('/official/investigations')
       ? '/official/investigations'
-      : '/official/investigation';
+      : location.pathname.startsWith('/official/investigation')
+      ? '/official/investigation'
+      : location.pathname.startsWith('/investigations')
+      ? '/investigations'
+      : location.pathname.startsWith('/cases')
+      ? '/cases'
+      : '/investigation';
     navigate(`${prefix}/${caseId}`);
   };
 
@@ -429,7 +435,7 @@ export default function InvestigationCentre() {
           </div>
 
           {/* Cases List */}
-          <div className="queue-cases-list">
+          <div className="queue-cases-list custom-scrollbar overflow-y-auto" style={{ maxHeight: 'calc(100vh - 280px)', minHeight: 0 }}>
             {filteredQueue.length === 0 ? (
               <div className="queue-empty-msg">
                 <Filter size={18} className="text-muted" />

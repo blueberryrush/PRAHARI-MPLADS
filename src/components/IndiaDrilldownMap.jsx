@@ -237,29 +237,46 @@ export default function IndiaDrilldownMap({
     if (!geo || !geo.features || geo.features.length === 0) return null;
 
     const proj = geoMercator();
+    const canvasWidth = width;
+    const canvasHeight = height;
+    const geoJsonData = geo;
 
-    if (level === 'state' && activeState) {
-      const stateKey = normalizeStateName(activeState);
-      const stateFeature = (geo.features || []).find((f) => {
-        const name = normalizeStateName(stateName(f));
-        return name === stateKey || name.includes(stateKey) || stateKey.includes(name);
-      }) || (cachedIndiaGeo?.features || []).find((f) => {
-        const name = normalizeStateName(stateName(f));
-        return name === stateKey || name.includes(stateKey) || stateKey.includes(name);
-      });
+    try {
+      if (selectedState || (level === 'state' && activeState)) {
+        const targetName = String(selectedState || activeState || '').toLowerCase().trim();
+        const stateFeature = geoJsonData.features.find(
+          (f) =>
+            (f.properties.st_nm || f.properties.ST_NM || f.properties.NAME_1 || f.properties.name || '')
+              .toLowerCase()
+              .trim() === targetName
+        ) || geoJsonData.features.find((f) => {
+          const name = normalizeStateName(stateName(f));
+          const stateKey = normalizeStateName(selectedState || activeState);
+          return name === stateKey || name.includes(stateKey) || stateKey.includes(name);
+        }) || (cachedIndiaGeo?.features || []).find((f) => {
+          const name = normalizeStateName(stateName(f));
+          const stateKey = normalizeStateName(selectedState || activeState);
+          return name === stateKey || name.includes(stateKey) || stateKey.includes(name);
+        });
 
-      if (stateFeature) {
-        // Force projection to fit inside visual canvas
-        proj.fitExtent([[20, 20], [width - 20, height - 20]], stateFeature);
+        // CRITICAL FIX: never call fitExtent on missing geometry (SVG crash / white screen)
+        if (!stateFeature) {
+          console.warn('Geometry not found for:', selectedState || activeState);
+          if (!geoJsonData.features.length) return null;
+          proj.fitExtent([[40, 40], [canvasWidth - 40, canvasHeight - 40]], geoJsonData);
+        } else {
+          proj.fitExtent([[40, 40], [canvasWidth - 40, canvasHeight - 40]], stateFeature);
+        }
       } else {
-        proj.fitExtent([[20, 20], [width - 20, height - 20]], geo);
+        proj.fitExtent([[40, 40], [canvasWidth - 40, canvasHeight - 40]], geoJsonData);
       }
-    } else {
-      proj.fitExtent([[20, 20], [width - 20, height - 20]], geo);
+    } catch (err) {
+      console.warn('Projection fit failed for:', selectedState || activeState, err);
+      return null;
     }
 
     return proj;
-  }, [geo, level, activeState, width, height]);
+  }, [geo, level, activeState, selectedState, width, height]);
 
   const pathGenerator = useMemo(() => {
     if (!projection) return null;
@@ -348,12 +365,17 @@ export default function IndiaDrilldownMap({
   };
 
   const enterState = (name) => {
-    setActiveState(name);
-    setLevel('state');
-    setHovered(null);
-    setHoveredPin(null);
-    onStateChange?.(name);
-    onSelectState?.(name);
+    if (!name) return;
+    try {
+      setActiveState(name);
+      setLevel('state');
+      setHovered(null);
+      setHoveredPin(null);
+      onStateChange?.(name);
+      onSelectState?.(name);
+    } catch (err) {
+      console.warn('State drilldown failed for:', name, err);
+    }
   };
 
   const reset = () => {
@@ -437,7 +459,7 @@ export default function IndiaDrilldownMap({
 
   return (
     <div
-      className={`real-map-shell ${borderless ? 'borderless' : ''}`}
+      className={`real-map-shell h-full w-full ${borderless ? 'borderless' : ''}`}
       style={
         borderless
           ? {
@@ -528,7 +550,14 @@ export default function IndiaDrilldownMap({
               const name = level === 'india' ? stateName(feature) : featureName(feature);
               const selected = level === 'india' && normalizeStateName(name) === normalizeStateName(activeState);
               const hoveredHere = hovered?.index === index;
-              const pathD = pathGenerator(feature);
+              const pathD = (() => {
+                try {
+                  return pathGenerator(feature);
+                } catch (err) {
+                  console.warn('Path generation failed for', name, err);
+                  return null;
+                }
+              })();
               if (!pathD) return null;
 
               return (
@@ -540,14 +569,25 @@ export default function IndiaDrilldownMap({
                     onMouseLeave={() => setHovered(null)}
                     onClick={() => (level === 'state' ? onDistrictSelect?.(name) : enterState(name))}
                     role="button"
-                    style={level === 'state' ? { cursor: 'pointer' } : {}}
+                    style={{
+                      cursor: 'pointer',
+                      fill:
+                        level === 'india'
+                          ? getStateMetrics(name)?.risk_level === 'high'
+                            ? '#FECACA'
+                            : getStateMetrics(name)?.risk_level === 'medium'
+                            ? '#FDE68A'
+                            : '#A7F3D0'
+                          : undefined,
+                    }}
                   />
                 </g>
               );
             })}
 
-            {/* Render State Level Project Markers (All matching projects with jittered distribution) */}
-            {level === 'state' &&
+            {/* Project coordinate pins intentionally omitted for a clean executive choropleth. */}
+            {false &&
+              level === 'state' &&
               features.length > 0 &&
               stateProjects.slice(0, 1500).map((p, idx) => {
                 const lat = Number(p.latitude || p.official_record?.latitude);
@@ -651,8 +691,9 @@ export default function IndiaDrilldownMap({
                 );
               })}
 
-            {/* Render Nearby Project Markers when at India level with active nearby list */}
-            {level === 'india' &&
+            {/* Nearby project pins omitted on the homepage / explorer choropleth. */}
+            {false &&
+              level === 'india' &&
               nearbyProjects?.length > 0 &&
               renderedNearby.map((p) => {
                 const isSelected =
@@ -782,7 +823,7 @@ export default function IndiaDrilldownMap({
                     PROJECTS
                   </span>
                   <div style={{ fontSize: '16px', fontWeight: '800', color: '#111827' }}>
-                    {Number(info.project_count).toLocaleString()}
+                    {Number(info.project_count || 0).toLocaleString()}
                   </div>
                 </div>
                 <div>
@@ -790,7 +831,7 @@ export default function IndiaDrilldownMap({
                     RISK SCORE
                   </span>
                   <div style={{ fontSize: '16px', fontWeight: '800', color: isHigh ? '#EF4444' : isMed ? '#D97706' : '#10B981' }}>
-                    {riskScore}%
+                    {Number.isFinite(Number(riskScore)) ? Number(riskScore) : 0}%
                   </div>
                 </div>
                 <div>
@@ -798,7 +839,7 @@ export default function IndiaDrilldownMap({
                     SANCTIONED
                   </span>
                   <div style={{ fontSize: '16px', fontWeight: '800', color: '#111827' }}>
-                    {info.sanctioned_formatted}
+                    {info.sanctioned_formatted || '₹0.0 Cr'}
                   </div>
                 </div>
                 <div>
@@ -806,7 +847,7 @@ export default function IndiaDrilldownMap({
                     ANOMALIES
                   </span>
                   <div style={{ fontSize: '16px', fontWeight: '800', color: '#DC2626' }}>
-                    {Number(info.anomaly_count).toLocaleString()}
+                    {Number(info.anomaly_count || 0).toLocaleString()}
                   </div>
                 </div>
               </div>

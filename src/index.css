@@ -8657,3 +8657,54 @@ html:not(.light) .mismatch-safe-banner .text-emerald-800 { color: #34d399 !impor
 
 html.light .sidebar-link:hover { color: var(--ink); }
 html.light .sidebar-link.active { color: #314D3F; }
+
+.citizen-page.page-content {
+  max-width: none;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+.citizen-explorer-layout {
+  min-height: 0;
+  width: 100%;
+}
+.citizen-page .citizen-map {
+  height: auto !important;
+  min-height: 0 !important;
+  background: transparent;
+}
+.citizen-page .real-map-shell,
+.citizen-page .real-map-canvas {
+  height: 100%;
+  min-height: 0;
+}
+.kpi-panel,
+.command-kpi-card,
+.roster-card,
+.queue-case,
+.sidebar-link,
+.command-tool-btn {
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.priority-table-container.custom-scrollbar,
+.queue-cases-list.custom-scrollbar {
+  overflow-y: auto;
+}
+.invest-layout .case-queue {
+  max-height: calc(100vh - 140px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.command-page {
+  overflow-x: hidden;
+}
+.command-grid-layout {
+  align-items: stretch;
+}
+@media (max-width: 1024px) {
+  .citizen-page.page-content {
+    height: auto;
+    overflow: visible;
+  }
+}

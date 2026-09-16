@@ -3,10 +3,10 @@ import { useLanguage } from '../contexts/LanguageContext';
 export function RiskBadge({ level, showLabel = true, size = 'default' }) {
   const { t } = useLanguage();
   const config = {
-    low: { color: '#00B894', bg: 'rgba(0, 184, 148, 0.12)', labelKey: 'badge_low_risk' },
-    medium: { color: '#E17055', bg: 'rgba(253, 203, 110, 0.22)', labelKey: 'badge_medium_risk' },
-    high: { color: '#FF6B6B', bg: 'rgba(255, 107, 107, 0.15)', labelKey: 'badge_high_risk' },
-    critical: { color: '#D63031', bg: 'rgba(214, 48, 49, 0.18)', labelKey: 'badge_critical' },
+    low: { color: '#059669', bg: 'rgba(5, 150, 105, 0.14)', labelKey: 'badge_low_risk' },
+    medium: { color: '#D97706', bg: 'rgba(245, 158, 11, 0.18)', labelKey: 'badge_medium_risk' },
+    high: { color: '#DC2626', bg: 'rgba(239, 68, 68, 0.15)', labelKey: 'badge_high_risk' },
+    critical: { color: '#991B1B', bg: 'rgba(153, 27, 27, 0.18)', labelKey: 'badge_critical' },
   };
   const c = config[level] || config.low;
   const isSmall = size === 'small';
