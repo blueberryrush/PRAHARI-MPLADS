@@ -26,7 +26,7 @@ from fastapi import FastAPI, HTTPException, Query, Response, Request, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from backend.models import (
+from models import (
     ProjectMetrics,
     EvidenceVerifyRequest,
     EvidenceVerifyResponse,
@@ -39,8 +39,8 @@ from backend.models import (
     OfficerLoginRequest,
     OfficerOnboardingRequest,
 )
-from backend.services.scoring import calculate_risk_score
-from backend.services.gemini_service import generate_risk_story, analyze_evidence_image
+from services.scoring import calculate_risk_score
+from services.gemini_service import generate_risk_story, analyze_evidence_image
 import backend.supabase_client as db
 import backend.database as auth_db
 import backend.auth_service as auth_svc
