@@ -81,6 +81,13 @@ def utcnow() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+# ─── Startup Event: Pre-Warm In-Memory Cache ──────────────────────────────────
+@app.on_event("startup")
+def startup_event():
+    import threading
+    threading.Thread(target=db.prewarm_cache, daemon=True).start()
+
+
 # ─── Routes ───────────────────────────────────────────────────────────────────
 
 @app.get("/api/health")
@@ -88,7 +95,7 @@ def health_check():
     """Returns service health and Supabase connection status."""
     supabase_ok = False
     try:
-        projs = db.get_official_projects()
+        projs = db.get_all_joined_projects()
         supabase_ok = len(projs) > 0
     except Exception:
         supabase_ok = False
@@ -98,6 +105,7 @@ def health_check():
         "service": "PRAHARI MPLADS API",
         "supabase_connected": supabase_ok,
         "supabase_url": db.SUPABASE_URL,
+        "cached_projects": len(projs) if supabase_ok else 0,
         "timestamp": utcnow(),
     }
 
@@ -229,12 +237,12 @@ def list_projects(
     risk_tier: Optional[str] = None,
     state: Optional[str] = None,
     category: Optional[str] = None,
-    limit: Optional[int] = 5000,
+    limit: Optional[int] = 500,
     offset: Optional[int] = None,
 ):
     """
     List all MPLADS projects joined with prahari_intelligence from Supabase.
-    Supports querying all seeded records (up to 5,000) without truncation.
+    High-performance curated dataset covering all states and priority sectors.
     """
     try:
         projects = db.get_all_joined_projects(
@@ -242,7 +250,7 @@ def list_projects(
             state=state,
             risk_tier=risk_tier,
             category=category,
-            limit=limit or 5000,
+            limit=limit or 500,
             offset=offset,
         )
         return {

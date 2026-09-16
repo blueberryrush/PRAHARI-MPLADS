@@ -19,42 +19,85 @@ if not SUPABASE_URL or not SUPABASE_KEY:
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 JSON_FILE_PATH = backend_dir / "data" / "real_projects.json"
 
-COORDINATES = {
-    "ARRAH": (25.5541, 84.6663),
-    "KISHANGANJ": (26.0746, 87.9424),
-    "PATNA": (25.5941, 85.1376),
-    "VARANASI": (25.3176, 82.9739),
-    "GHAZIABAD": (28.6692, 77.4538),
-    "NEW DELHI": (28.6139, 77.2090),
+STATE_CENTROIDS = {
+    "andhra pradesh": (15.9129, 79.7400),
+    "arunachal pradesh": (28.2180, 94.7278),
+    "assam": (26.2006, 92.9376),
+    "bihar": (25.0961, 85.3131),
+    "chhattisgarh": (21.2787, 81.8661),
+    "goa": (15.2993, 74.1240),
+    "gujarat": (22.2587, 71.1924),
+    "haryana": (29.0588, 76.0856),
+    "himachal pradesh": (31.1048, 77.1734),
+    "jharkhand": (23.6102, 85.2799),
+    "karnataka": (15.3173, 75.7139),
+    "kerala": (10.8505, 76.2711),
+    "madhya pradesh": (22.9734, 78.6569),
+    "maharashtra": (19.7515, 75.7139),
+    "manipur": (24.6637, 93.9063),
+    "meghalaya": (25.4670, 91.3662),
+    "mizoram": (23.1645, 92.9376),
+    "nagaland": (26.1584, 94.5624),
+    "odisha": (20.9517, 85.0985),
+    "punjab": (31.1471, 75.3412),
+    "rajasthan": (27.0238, 74.2179),
+    "sikkim": (27.5330, 88.5122),
+    "tamil nadu": (11.1271, 78.6569),
+    "telangana": (18.1124, 79.0193),
+    "tripura": (23.9408, 91.9882),
+    "uttar pradesh": (26.8467, 80.9462),
+    "uttarakhand": (30.0668, 79.0193),
+    "west bengal": (22.9868, 87.8550),
+    "delhi": (28.6139, 77.2090),
+    "jammu and kashmir": (33.7782, 76.5762),
+    "ladakh": (34.1526, 77.5771),
+    "chandigarh": (30.7333, 76.7794),
+    "puducherry": (11.9416, 79.8083),
+    "andaman and nicobar islands": (11.7401, 92.6586),
+    "lakshadweep": (10.5667, 72.6417),
+    "the dadra and nagar haveli and daman and diu": (20.4283, 72.8397),
+}
+
+DISTRICT_CENTROIDS = {
+    "varanasi": (25.3176, 82.9739),
+    "ghaziabad": (28.6692, 77.4538),
+    "patna": (25.5941, 85.1376),
+    "arrah": (25.5541, 84.6663),
+    "kishanganj": (26.0746, 87.9424),
+    "new delhi": (28.6139, 77.2090),
+    "mumbai": (19.0760, 72.8777),
+    "bangalore": (12.9716, 77.5946),
+    "kolkata": (22.5726, 88.3639),
 }
 
 def parse_record(item, idx):
-    constituency_raw = str(item.get("constituency", "Arrah")).strip()
-    const_key = constituency_raw.upper()
-    base_lat, base_lon = COORDINATES.get(const_key, (25.5541, 84.6663))
+    st = str(item.get("state", "Uttar Pradesh")).strip()
+    constituency_raw = str(item.get("constituency", "Varanasi")).strip()
+    
+    c_key = constituency_raw.lower()
+    st_key = st.lower()
+    base_lat, base_lon = DISTRICT_CENTROIDS.get(c_key, STATE_CENTROIDS.get(st_key, (25.3176, 82.9739)))
+    lat = round(base_lat + random.uniform(-0.06, 0.06), 6)
+    lon = round(base_lon + random.uniform(-0.06, 0.06), 6)
 
-    lat = round(base_lat + random.uniform(-0.02, 0.02), 6)
-    lon = round(base_lon + random.uniform(-0.02, 0.02), 6)
-
-    raw_cost = float(item.get("cost", 1000000))
-    raw_disbursed = float(item.get("disbursed", raw_cost * 0.8))
+    raw_cost = float(item.get("cost", 1500000))
+    raw_disbursed = float(item.get("disbursed", raw_cost * 0.75))
     sanctioned_lakhs = round(raw_cost / 100000.0, 2)
     expenditure_lakhs = round(raw_disbursed / 100000.0, 2)
 
     is_completed = "completed" in str(item.get("type", "")).lower() or "completed" in str(item.get("status", "")).lower()
-    
     raw_year = item.get("year", 2024)
     sanction_date = f"{raw_year}-04-15"
     completion_date = f"{raw_year}-12-20" if is_completed else None
     work_status = "Completed" if is_completed else "Work in Progress"
 
-    work_id = str(item.get("id") or f"MPLADS-BI-{idx+1:05d}")
+    work_id = str(item.get("id") or f"MPLADS-PRJ-{idx+1:05d}")
 
     official_project = {
         "work_id": work_id,
         "work_name": item.get("title", "MPLADS Infrastructure Work"),
         "category": item.get("category", "General Infrastructure"),
-        "state": item.get("state", "Bihar"),
+        "state": st,
         "district": constituency_raw,
         "block_constituency": constituency_raw,
         "mp_name": item.get("mp", "Representative MP"),
@@ -129,7 +172,7 @@ def run_ingestion():
     if not isinstance(records, list):
         records = records.get("projects", [])
 
-    print(f"Loaded {len(records)} records from JSON. Preparing batch upsert...")
+    print(f"Loaded {len(records)} curated records from JSON. Preparing batch upsert...")
 
     official_batch = []
     intel_batch = []
