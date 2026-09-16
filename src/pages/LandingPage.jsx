@@ -43,7 +43,7 @@ export default function LandingPage() {
     let isCancelled = false;
     async function loadAllProjects() {
       try {
-        const res = await fetch('http://localhost:8000/api/projects?limit=5000');
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/projects?limit=5000`);
         if (res.ok) {
           const data = await res.json();
           const allWorks = Array.isArray(data) ? data : (data?.projects || data?.works || []);

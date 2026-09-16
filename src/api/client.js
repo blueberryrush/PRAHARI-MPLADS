@@ -5,7 +5,7 @@
 import { supabase } from '../lib/supabase';
 import { projects as fallbackMockProjects } from '../data/mockData';
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const BASE_URL = import.meta.env.VITE_API_URL;
 const TIMEOUT_MS = 15000;
 
 // ─── Fetch with timeout ────────────────────────────────────────────────────────

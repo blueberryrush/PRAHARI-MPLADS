@@ -82,7 +82,7 @@ export default function IndiaDrilldownMap({
   useEffect(() => {
     let isMounted = true;
     if (!projects || projects.length < 50) {
-      fetch('http://localhost:8000/api/projects?limit=5000')
+      fetch(`${import.meta.env.VITE_API_URL}/api/projects?limit=5000`)
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
           const allWorks = Array.isArray(data) ? data : (data?.projects || data?.works || []);
