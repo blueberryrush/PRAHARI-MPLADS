@@ -10,7 +10,7 @@ import hashlib
 import time
 from typing import Optional, Dict, Any
 
-from backend.database import (
+from database import (
     get_officer_by_email,
     get_officer_by_id,
     hash_password,
