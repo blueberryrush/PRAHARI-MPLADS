@@ -384,7 +384,7 @@ export default function OfficialDashboard() {
             <span>OPERATIONAL DECISION-SUPPORT CENTRE · {getRoleLabel(user?.role || 'district_authority').toUpperCase()}</span>
           </div>
           <h2 style={{ fontSize: '24px', fontWeight: 800, letterSpacing: '-0.025em', margin: '4px 0 2px' }}>
-            PRahari Command Centre
+            Prahari Command Centre
           </h2>
           <p style={{ fontSize: '13px', color: 'var(--muted)', margin: 0 }}>
             {hi ? 'एआई-संचालित एमपीलैड्स परियोजना जोखिम निगरानी एवं स्थलीय सत्यापन प्रणाली' : 'AI-powered MPLADS project risk monitoring & verification'}
@@ -436,7 +436,7 @@ export default function OfficialDashboard() {
             <span>{hi ? 'उच्च जोखिम फ़िल्टर' : 'View High Priority'}</span>
           </button>
 
-          <SpeakerButton text={`PRahari Command Centre. AI-powered MPLADS project risk monitoring and verification. ${kpiData.highPriority} high priority cases requiring official attention.`} />
+          <SpeakerButton text={`Prahari Command Centre. AI-powered MPLADS project risk monitoring and verification. ${kpiData.highPriority} high priority cases requiring official attention.`} />
         </div>
       </div>
 

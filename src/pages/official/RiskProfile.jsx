@@ -374,26 +374,26 @@ export default function RiskProfile() {
             <div style={{
               background: '#FAFAF7',
               border: '1px solid var(--line)',
-              borderRadius: 14,
-              padding: 20,
+              borderRadius: 16,
+              padding: 24,
               display: 'flex',
               flexDirection: 'column',
-              gap: 16,
-              marginTop: 10,
+              gap: 20,
+              marginTop: 12,
             }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 14 }}>
                 <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap' }}>
                   <div>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>
                       {t('verif_reported_progress')}
                     </span>
-                    <b style={{ fontSize: 26, fontWeight: 800, color: '#1c1917' }}>{reportedProgress}%</b>
+                    <b style={{ fontSize: 26, fontWeight: 800, color: '#1c1917', lineHeight: 1.1 }}>{reportedProgress}%</b>
                   </div>
                   <div>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>
                       {t('verif_ai_estimate')}
                     </span>
-                    <b style={{ fontSize: 26, fontWeight: 800, color: '#c2410c' }}>{aiVisualEstimate}%</b>
+                    <b style={{ fontSize: 26, fontWeight: 800, color: '#c2410c', lineHeight: 1.1 }}>{aiVisualEstimate}%</b>
                   </div>
                 </div>
 
@@ -402,38 +402,40 @@ export default function RiskProfile() {
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: 6,
-                    padding: '6px 12px',
+                    padding: '8px 14px',
                     borderRadius: 8,
                     background: '#ffedd5',
                     border: '1px solid #fed7aa',
                     color: '#9a3412',
                     fontWeight: 800,
                     fontSize: 12,
+                    flexShrink: 0,
+                    whiteSpace: 'nowrap',
                   }}>
-                    <AlertTriangle size={15} />
+                    <AlertTriangle size={15} style={{ flexShrink: 0 }} />
                     <span>⚠️ {discrepancy}-{t('verif_discrepancy_badge')}</span>
                   </div>
                 )}
               </div>
 
               {/* Progress Comparison Bars */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 5 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
                     <span style={{ fontWeight: 600, color: '#44403c' }}>{t('verif_reported_progress')} (DPR / Agency Filing)</span>
                     <span style={{ fontWeight: 700, color: '#1c1917' }}>{reportedProgress}%</span>
                   </div>
-                  <div style={{ height: 10, background: '#e7e5e4', borderRadius: 6, overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${reportedProgress}%`, background: '#314D3F', borderRadius: 6, transition: 'width 0.4s ease' }} />
+                  <div style={{ height: 12, background: '#E5E7EB', borderRadius: 6, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${reportedProgress}%`, background: '#1E3A2B', borderRadius: 6, transition: 'width 0.4s ease' }} />
                   </div>
                 </div>
 
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 5 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
                     <span style={{ fontWeight: 600, color: '#44403c' }}>{t('verif_ai_estimate')} (Satellite & Site Imagery)</span>
                     <span style={{ fontWeight: 700, color: '#c2410c' }}>{aiVisualEstimate}%</span>
                   </div>
-                  <div style={{ height: 10, background: '#e7e5e4', borderRadius: 6, overflow: 'hidden' }}>
+                  <div style={{ height: 12, background: '#E5E7EB', borderRadius: 6, overflow: 'hidden' }}>
                     <div style={{ height: '100%', width: `${aiVisualEstimate}%`, background: '#ea580c', borderRadius: 6, transition: 'width 0.4s ease' }} />
                   </div>
                 </div>
@@ -443,20 +445,20 @@ export default function RiskProfile() {
               {discrepancy > 0 ? (
                 <div style={{
                   display: 'flex',
-                  gap: 12,
+                  gap: 14,
                   alignItems: 'flex-start',
                   background: '#fffbeb',
                   border: '1px solid #fef3c7',
-                  borderRadius: 10,
-                  padding: '12px 14px',
+                  borderRadius: 12,
+                  padding: '14px 16px',
                   marginTop: 4,
                 }}>
                   <AlertTriangle size={18} style={{ color: '#d97706', flexShrink: 0, marginTop: 2 }} />
-                  <div>
-                    <strong style={{ fontSize: 12, color: '#92400e', display: 'block', marginBottom: 2 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <strong style={{ fontSize: 12.5, color: '#92400e', display: 'block', marginBottom: 3 }}>
                       ⚠️ {t('verif_mismatch_title')}
                     </strong>
-                    <p style={{ margin: 0, fontSize: 11, color: '#78350f', lineHeight: 1.45 }}>
+                    <p style={{ margin: 0, fontSize: 11.5, color: '#78350f', lineHeight: 1.5 }}>
                       {t('verif_mismatch_desc')}
                     </p>
                   </div>
@@ -464,17 +466,17 @@ export default function RiskProfile() {
               ) : (
                 <div style={{
                   display: 'flex',
-                  gap: 10,
+                  gap: 12,
                   alignItems: 'center',
                   background: '#f0fdf4',
                   border: '1px solid #dcfce7',
-                  borderRadius: 10,
-                  padding: '10px 14px',
-                  fontSize: 11,
+                  borderRadius: 12,
+                  padding: '12px 16px',
+                  fontSize: 12,
                   color: '#166534',
                 }}>
-                  <CheckCircle2 size={16} />
-                  <span>Reported progress matches estimated site reality within standard tolerance.</span>
+                  <CheckCircle2 size={16} style={{ flexShrink: 0 }} />
+                  <span style={{ flex: 1, minWidth: 0 }}>Reported progress matches estimated site reality within standard tolerance.</span>
                 </div>
               )}
             </div>

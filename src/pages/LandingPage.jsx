@@ -72,10 +72,7 @@ export default function LandingPage() {
     };
   }, []);
 
-  let caseContext = null;
-  try {
-    caseContext = useCaseContext();
-  } catch {}
+  const caseContext = useCaseContext();
 
   const activeProjects = useMemo(() => {
     if (projectsData && projectsData.length > 0) return projectsData;

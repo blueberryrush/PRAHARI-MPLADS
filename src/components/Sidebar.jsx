@@ -83,7 +83,7 @@ export default function Sidebar() {
           <div>
             <b>{displayWorkspace}</b>
             <small>
-              {user?.state || 'India'}
+              {user?.state || (lang === 'hi' ? 'अखिल भारतीय' : 'All India')}
               {user?.district ? ` · ${user.district}` : ''}
             </small>
           </div>

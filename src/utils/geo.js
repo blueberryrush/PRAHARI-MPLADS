@@ -106,31 +106,32 @@ export function getCoordinatesForDistrict(targetName, projects = []) {
  * Calculates Great-Circle Distance between two coordinates in Kilometers (Haversine formula).
  */
 export function calculateDistanceKm(lat1, lon1, lat2, lon2) {
-  if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) {
+  try {
+    if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) {
+      return null;
+    }
+    const nLat1 = Number(lat1);
+    const nLon1 = Number(lon1);
+    const nLat2 = Number(lat2);
+    const nLon2 = Number(lon2);
+    if (isNaN(nLat1) || isNaN(nLon1) || isNaN(nLat2) || isNaN(nLon2) || !isFinite(nLat1) || !isFinite(nLon1) || !isFinite(nLat2) || !isFinite(nLon2)) {
+      return null;
+    }
+    const R = 6371; // Earth's radius in kilometers
+    const dLat = ((nLat2 - nLat1) * Math.PI) / 180;
+    const dLon = ((nLon2 - nLon1) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((nLat1 * Math.PI) / 180) *
+        Math.cos((nLat2 * Math.PI) / 180) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(Math.max(0, Math.min(1, a))), Math.sqrt(Math.max(0, 1 - a)));
+    return R * c;
+  } catch (err) {
+    console.warn('calculateDistanceKm error:', err);
     return null;
   }
-  const nLat1 = Number(lat1);
-  const nLon1 = Number(lon1);
-  const nLat2 = Number(lat2);
-  const nLon2 = Number(lon2);
-  if (isNaN(nLat1) || isNaN(nLon1) || brainCoordInvalid(nLat1, nLon1, nLat2, nLon2)) {
-    return null;
-  }
-  const R = 6371; // Earth's radius in kilometers
-  const dLat = ((nLat2 - nLat1) * Math.PI) / 180;
-  const dLon = ((nLon2 - nLon1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos((nLat1 * Math.PI) / 180) *
-      Math.cos((nLat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
-
-function brainCoordInvalid(a, b, c, d) {
-  return isNaN(a) || isNaN(b) || isNaN(c) || isNaN(d);
 }
 
 /**
@@ -138,38 +139,50 @@ function brainCoordInvalid(a, b, c, d) {
  * e.g., 350 m away, 1.2 km away, 4.8 km away
  */
 export function formatDistance(km, lang = 'en') {
-  if (km == null || isNaN(km)) return '';
-  if (km < 1) {
-    const meters = Math.max(50, Math.round(km * 1000));
-    return lang === 'hi' ? `${meters} मी दूर` : `${meters} m away`;
+  try {
+    if (km == null || isNaN(km) || !isFinite(km)) return '';
+    if (km < 1) {
+      const meters = Math.max(50, Math.round(km * 1000));
+      return lang === 'hi' ? `${meters} मी दूर` : `${meters} m away`;
+    }
+    return lang === 'hi' ? `${km.toFixed(1)} किमी दूर` : `${km.toFixed(1)} km away`;
+  } catch {
+    return '';
   }
-  return lang === 'hi' ? `${km.toFixed(1)} किमी दूर` : `${km.toFixed(1)} km away`;
 }
 
 /**
  * Computes distances from user location to projects and sorts nearest to farthest.
  */
 export function getNearbyProjects(projects, userLat, userLng, lang = 'en') {
-  if (!projects || userLat == null || userLng == null) return [];
-  const uLat = Number(userLat);
-  const uLng = Number(userLng);
-  if (isNaN(uLat) || isNaN(uLng)) return [];
+  try {
+    if (!projects || !Array.isArray(projects) || userLat == null || userLng == null) return [];
+    const uLat = Number(userLat);
+    const uLng = Number(userLng);
+    if (isNaN(uLat) || isNaN(uLng) || !isFinite(uLat) || !isFinite(uLng)) return [];
 
-  return projects
-    .filter((p) => {
-      const lat = Number(p.latitude || p.official_record?.latitude);
-      const lng = Number(p.longitude || p.official_record?.longitude);
-      return !isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0;
-    })
-    .map((p) => {
-      const lat = Number(p.latitude || p.official_record?.latitude);
-      const lng = Number(p.longitude || p.official_record?.longitude);
-      const distanceKm = calculateDistanceKm(uLat, uLng, lat, lng);
-      return {
-        ...p,
-        distanceKm,
-        distanceFormatted: formatDistance(distanceKm, lang),
-      };
-    })
-    .sort((a, b) => (a.distanceKm || 0) - (b.distanceKm || 0));
+    return projects
+      .filter((p) => {
+        if (!p) return false;
+        const lat = Number(p.latitude ?? p.official_record?.latitude);
+        const lng = Number(p.longitude ?? p.official_record?.longitude);
+        return !isNaN(lat) && !isNaN(lng) && isFinite(lat) && isFinite(lng) && lat !== 0 && lng !== 0;
+      })
+      .map((p) => {
+        if (!p) return null;
+        const lat = Number(p.latitude ?? p.official_record?.latitude);
+        const lng = Number(p.longitude ?? p.official_record?.longitude);
+        const distanceKm = calculateDistanceKm(uLat, uLng, lat, lng);
+        return {
+          ...p,
+          distanceKm: distanceKm ?? 0,
+          distanceFormatted: formatDistance(distanceKm, lang),
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => (a?.distanceKm || 0) - (b?.distanceKm || 0));
+  } catch (err) {
+    console.warn('getNearbyProjects error:', err);
+    return [];
+  }
 }

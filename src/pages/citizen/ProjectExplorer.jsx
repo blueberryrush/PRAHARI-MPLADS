@@ -2,15 +2,17 @@ import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useCaseContext } from '../../contexts/CaseContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { projects as mockProjects, states, sectors } from '../../data/mockData';
 import { StatusBadge } from '../../components/RiskBadge';
 import { Search, Download, X } from 'lucide-react';
 
 export default function ProjectExplorer() {
   const { t, lang } = useLanguage();
+  const { user } = useAuth();
   const { projects: cloudProjects } = useCaseContext();
   const [search, setSearch] = useState('');
-  const [stateFilter, setStateFilter] = useState('');
+  const [stateFilter, setStateFilter] = useState(() => user?.state || '');
   const [sectorFilter, setSectorFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [selectedProject, setSelectedProject] = useState(null);

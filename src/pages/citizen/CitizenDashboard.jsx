@@ -21,6 +21,7 @@ import { useNavigate } from 'react-router-dom';
 import { projects as mockProjects, states, agencies } from '../../data/mockData';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useCaseContext } from '../../contexts/CaseContext';
+import { useAuth } from '../../contexts/AuthContext';
 import SpeakerButton from '../../components/SpeakerButton';
 import IndiaDrilldownMap from '../../components/IndiaDrilldownMap';
 import CivicMap from '../../components/map/CivicMap';
@@ -253,11 +254,12 @@ export default function CitizenDashboard() {
   const navigate = useNavigate();
   const { t, lang } = useLanguage();
   const hi = lang === 'hi';
+  const { user } = useAuth();
   const { addComplaint, projects: cloudProjects } = useCaseContext();
 
   const [search, setSearch] = useState('');
-  const [state, setState] = useState('');
-  const [selectedDistrict, setSelectedDistrict] = useState('');
+  const [state, setState] = useState(() => user?.state || '');
+  const [selectedDistrict, setSelectedDistrict] = useState(() => user?.district || '');
   const [selectedProject, setSelectedProject] = useState(null);
   const [selectedProjectForDetails, setSelectedProjectForDetails] = useState(null);
   const [grievanceOpen, setGrievanceOpen] = useState(false);
@@ -357,43 +359,64 @@ export default function CitizenDashboard() {
   };
 
   const requestLocation = () => {
-    setActiveTab('near');
-    if (userLocation && !userLocation.isDemo) return;
-    setGeoStatus('locating');
-    if (typeof navigator !== 'undefined' && 'geolocation' in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          setUserLocation({
-            lat: pos.coords.latitude,
-            lng: pos.coords.longitude,
-            isDemo: false,
-            name: 'Your Current Location',
-          });
-          setGeoStatus('success');
-        },
-        (err) => {
-          console.warn('Geolocation unavailable:', err);
-          handleUseDemoLocation('denied');
-        },
-        { timeout: 8000, maximumAge: 60000 }
-      );
-    } else {
+    try {
+      setActiveTab('near');
+      if (userLocation && !userLocation.isDemo) return;
+      setGeoStatus('locating');
+      if (typeof navigator !== 'undefined' && navigator && 'geolocation' in navigator && navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            try {
+              if (pos?.coords?.latitude != null && pos?.coords?.longitude != null) {
+                setUserLocation({
+                  lat: pos.coords.latitude,
+                  lng: pos.coords.longitude,
+                  isDemo: false,
+                  name: 'Your Current Location',
+                });
+                setGeoStatus('success');
+              } else {
+                handleUseDemoLocation('denied');
+              }
+            } catch (posErr) {
+              console.warn('Geolocation position processing error:', posErr);
+              handleUseDemoLocation('denied');
+            }
+          },
+          (err) => {
+            console.warn('Geolocation unavailable or denied:', err);
+            handleUseDemoLocation('denied');
+          },
+          { timeout: 8000, maximumAge: 60000, enableHighAccuracy: false }
+        );
+      } else {
+        handleUseDemoLocation('denied');
+      }
+    } catch (err) {
+      console.warn('requestLocation error:', err);
       handleUseDemoLocation('denied');
     }
   };
 
   const nearbyProjectsList = useMemo(() => {
-    if (!userLocation) return [];
-    const list = getNearbyProjects(activeProjects, userLocation.lat, userLocation.lng, lang);
-    if (sortOrder === 'desc') {
-      return [...list].reverse();
+    try {
+      if (!userLocation || userLocation.lat == null || userLocation.lng == null) return [];
+      const list = getNearbyProjects(activeProjects || [], userLocation.lat, userLocation.lng, lang);
+      if (!Array.isArray(list)) return [];
+      if (sortOrder === 'desc') {
+        return [...list].reverse();
+      }
+      return list;
+    } catch (err) {
+      console.warn('nearbyProjectsList computation error:', err);
+      return [];
     }
-    return list;
   }, [userLocation, activeProjects, lang, sortOrder]);
 
   const filtered = useMemo(() => {
     const s = search.trim().toLowerCase();
-    return activeProjects.filter((p) => {
+    return (activeProjects || []).filter((p) => {
+      if (!p) return false;
       const matchState =
         !state ||
         String(p.state || '')
@@ -414,7 +437,8 @@ export default function CitizenDashboard() {
   const constituencyProjects = useMemo(() => {
     if (!selectedDistrict) return [];
     const target = selectedDistrict.trim().toLowerCase();
-    return activeProjects.filter((p) => {
+    return (activeProjects || []).filter((p) => {
+      if (!p) return false;
       const d = String(p.district || '').trim().toLowerCase();
       const c = String(p.constituency || p.block_constituency || '').trim().toLowerCase();
       return (
@@ -445,7 +469,8 @@ export default function CitizenDashboard() {
   }, [userLocation, selectedDistrict, state, activeProjects]);
 
   const getAgencyName = (agencyId) => {
-    const a = agencies.find((ag) => ag.id === agencyId);
+    if (!agencyId) return 'Nodal Agency';
+    const a = (agencies || []).find((ag) => ag.id === agencyId);
     return a ? a.name.split(' - ')[0] : agencyId || 'Nodal Agency';
   };
 
@@ -456,6 +481,7 @@ export default function CitizenDashboard() {
   };
 
   const getProjectRisk = (p) => {
+    if (!p) return { level: 'low', label: t('risk_badge_low') || 'Low Risk', text: '🟢 ' + (t('risk_badge_low') || 'Low Risk') };
     const score =
       p.composite_risk_score != null
         ? Number(p.composite_risk_score)
@@ -1254,7 +1280,7 @@ export default function CitizenDashboard() {
               >
                 <div>
                   <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>
-                    {t('near_me_title')} ({nearbyProjectsList.length})
+                    {t('near_me_title')} ({nearbyProjectsList?.length || 0})
                   </h3>
                   <small style={{ color: 'var(--muted)', fontSize: 11 }}>{t('near_me_subtitle')}</small>
                 </div>
@@ -1278,136 +1304,157 @@ export default function CitizenDashboard() {
                 </div>
               </div>
 
-              {/* Nearby Projects Grid */}
-              <div className="roster-grid" style={{ marginTop: 4 }}>
-                {nearbyProjectsList.map((p) => {
-                  const riskInfo = getProjectRisk(p);
-                  const pId = p.id || p.work_id;
-                  const pName = p.name || p.work_name;
-                  const sanctionedLakhs =
-                    p.sanctioned_amount_lakhs != null
-                      ? Number(p.sanctioned_amount_lakhs)
-                      : (p.sanctionedAmount || 0) / 100000;
-                  const progressPct = p.physicalProgress ?? p.reported_progress_pct ?? 0;
+              {/* Nearby Projects Grid / Fallback */}
+              {!nearbyProjectsList || nearbyProjectsList.length === 0 ? (
+                <div className="panel" style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--muted)', background: '#F9FAF8', borderRadius: 12, marginTop: 4 }}>
+                  <MapPin size={28} style={{ margin: '0 auto 8px', opacity: 0.5, color: 'var(--brand)' }} />
+                  <p style={{ margin: '0 0 4px', fontWeight: 700, fontSize: 13, color: 'var(--ink)' }}>
+                    {hi ? 'निकटवर्ती कोई कार्य नहीं मिला' : 'No nearby projects found for this location'}
+                  </p>
+                  <small style={{ display: 'block', marginBottom: 14 }}>
+                    {hi ? 'डेमो स्थान देखने के लिए नीचे दिए गए बटन पर क्लिक करें।' : 'Click below to switch to the demo coordinates with active projects.'}
+                  </small>
+                  <button
+                    type="button"
+                    className="primary-action"
+                    onClick={() => handleUseDemoLocation('manual')}
+                    style={{ fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                  >
+                    <MapPin size={13} /> {t('near_me_use_demo_btn')}
+                  </button>
+                </div>
+              ) : (
+                <div className="roster-grid" style={{ marginTop: 4 }}>
+                  {nearbyProjectsList.map((p) => {
+                    if (!p) return null;
+                    const riskInfo = getProjectRisk(p);
+                    const pId = p.id || p.work_id || 'PRJ-UNK';
+                    const pName = p.name || p.work_name || 'Public Project';
+                    const sanctionedLakhs =
+                      p.sanctioned_amount_lakhs != null
+                        ? Number(p.sanctioned_amount_lakhs)
+                        : (p.sanctionedAmount || 0) / 100000;
+                    const progressPct = safeNumber(p.physicalProgress ?? p.reported_progress_pct, 0);
 
-                  return (
-                    <div
-                      key={pId}
-                      className="roster-card"
-                      style={{
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                        position: 'relative',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 8,
-                        padding: 16,
-                      }}
-                      onClick={() => {
-                        selectProjectWithReset(p);
-                      }}
-                    >
-                      {/* Top bar with distance and risk badge */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-                        <span
-                          style={{
-                            fontSize: 10,
-                            fontWeight: 800,
-                            color: '#2563eb',
-                            background: '#eff6ff',
-                            padding: '3px 8px',
-                            borderRadius: 6,
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 4,
-                            border: '1px solid #bfdbfe',
-                          }}
-                        >
-                          <MapPin size={11} /> {p.distanceFormatted}
-                        </span>
-                        <span
-                          style={{
-                            fontSize: 9,
-                            fontWeight: 800,
-                            padding: '3px 7px',
-                            borderRadius: 5,
-                            background:
-                              riskInfo.level === 'high'
-                                ? '#fee2e2'
-                                : riskInfo.level === 'medium'
-                                ? '#fef3c7'
-                                : '#dcfce7',
-                            color:
-                              riskInfo.level === 'high'
-                                ? '#991b1b'
-                                : riskInfo.level === 'medium'
-                                ? '#92400e'
-                                : '#166534',
-                          }}
-                        >
-                          {riskInfo.text}
-                        </span>
-                      </div>
-
-                      {/* Title & Sector */}
-                      <div className="roster-card-body" style={{ flex: 1 }}>
-                        <span className="roster-id" style={{ display: 'block', fontSize: 10, color: 'var(--muted)', marginBottom: 3 }}>
-                          {pId} · {p.sector || p.category}
-                        </span>
-                        <strong style={{ fontSize: 13, display: 'block', color: 'var(--ink)', lineHeight: 1.35, marginBottom: 6 }}>
-                          {pName}
-                        </strong>
-                        <div className="roster-meta" style={{ display: 'flex', gap: 10, fontSize: 11, color: 'var(--muted)', marginBottom: 8, flexWrap: 'wrap' }}>
-                          <span>📍 {p.district || p.constituency}, {p.state}</span>
-                          <span>₹{sanctionedLakhs.toFixed(1)}L</span>
-                          <span className={`roster-status ${p.status || 'in_progress'}`}>
-                            {p.audit_status || p.status || t('citizen_in_progress')}
+                    return (
+                      <div
+                        key={pId}
+                        className="roster-card"
+                        style={{
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          position: 'relative',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 8,
+                          padding: 16,
+                        }}
+                        onClick={() => {
+                          selectProjectWithReset(p);
+                        }}
+                      >
+                        {/* Top bar with distance and risk badge */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                          <span
+                            style={{
+                              fontSize: 10,
+                              fontWeight: 800,
+                              color: '#2563eb',
+                              background: '#eff6ff',
+                              padding: '3px 8px',
+                              borderRadius: 6,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 4,
+                              border: '1px solid #bfdbfe',
+                            }}
+                          >
+                            <MapPin size={11} /> {p.distanceFormatted || 'Nearby'}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: 9,
+                              fontWeight: 800,
+                              padding: '3px 7px',
+                              borderRadius: 5,
+                              background:
+                                riskInfo.level === 'high'
+                                  ? '#fee2e2'
+                                  : riskInfo.level === 'medium'
+                                  ? '#fef3c7'
+                                  : '#dcfce7',
+                              color:
+                                riskInfo.level === 'high'
+                                  ? '#991b1b'
+                                  : riskInfo.level === 'medium'
+                                  ? '#92400e'
+                                  : '#166534',
+                            }}
+                          >
+                            {riskInfo.text}
                           </span>
                         </div>
 
-                        {/* Progress Bar */}
-                        <div className="roster-progress-bar" style={{ marginBottom: 4 }}>
-                          <i style={{ width: `${progressPct}%` }} />
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--muted)' }}>
-                          <span>
-                            {progressPct}% {t('common_physical').toLowerCase()} {t('common_progress').toLowerCase()}
+                        {/* Title & Sector */}
+                        <div className="roster-card-body" style={{ flex: 1 }}>
+                          <span className="roster-id" style={{ display: 'block', fontSize: 10, color: 'var(--muted)', marginBottom: 3 }}>
+                            {pId} · {p.sector || p.category || 'General'}
                           </span>
-                          {p.estimatedSiteProgress != null && p.estimatedSiteProgress !== progressPct && (
-                            <span style={{ color: '#c2410c', fontWeight: 600 }}>
-                              AI Est: {p.estimatedSiteProgress}%
+                          <strong style={{ fontSize: 13, display: 'block', color: 'var(--ink)', lineHeight: 1.35, marginBottom: 6 }}>
+                            {pName}
+                          </strong>
+                          <div className="roster-meta" style={{ display: 'flex', gap: 10, fontSize: 11, color: 'var(--muted)', marginBottom: 8, flexWrap: 'wrap' }}>
+                            <span>📍 {p.district || p.constituency || 'District'}, {p.state || 'State'}</span>
+                            <span>₹{sanctionedLakhs.toFixed(1)}L</span>
+                            <span className={`roster-status ${p.status || 'in_progress'}`}>
+                              {p.audit_status || p.status || t('citizen_in_progress')}
                             </span>
-                          )}
+                          </div>
+
+                          {/* Progress Bar */}
+                          <div className="roster-progress-bar" style={{ marginBottom: 4 }}>
+                            <i style={{ width: `${progressPct}%` }} />
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--muted)' }}>
+                            <span>
+                              {progressPct}% {t('common_physical').toLowerCase()} {t('common_progress').toLowerCase()}
+                            </span>
+                            {p.estimatedSiteProgress != null && p.estimatedSiteProgress !== progressPct && (
+                              <span style={{ color: '#c2410c', fontWeight: 600 }}>
+                                AI Est: {p.estimatedSiteProgress}%
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Card Action Buttons */}
+                        <div style={{ display: 'flex', gap: 6, marginTop: 4, paddingTop: 10, borderTop: '1px solid var(--line)' }}>
+                          <button
+                            className="primary-action"
+                            style={{ flex: 1, height: 32, fontSize: 10, background: '#059669', borderColor: '#059669' }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              selectProjectWithReset(p);
+                            }}
+                          >
+                            Select & Report
+                          </button>
+                          <button
+                            className="secondary-action"
+                            style={{ height: 32, fontSize: 10, padding: '0 10px' }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/citizen/project/${pId}`);
+                            }}
+                          >
+                            Dossier <ArrowRight size={12} />
+                          </button>
                         </div>
                       </div>
-
-                      {/* Card Action Buttons */}
-                      <div style={{ display: 'flex', gap: 6, marginTop: 4, paddingTop: 10, borderTop: '1px solid var(--line)' }}>
-                        <button
-                          className="primary-action"
-                          style={{ flex: 1, height: 32, fontSize: 10, background: '#059669', borderColor: '#059669' }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            selectProjectWithReset(p);
-                          }}
-                        >
-                          Select & Report
-                        </button>
-                        <button
-                          className="secondary-action"
-                          style={{ height: 32, fontSize: 10, padding: '0 10px' }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate(`/citizen/project/${pId}`);
-                          }}
-                        >
-                          Dossier <ArrowRight size={12} />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              )}
             </>
           )}
         </div>
@@ -1906,101 +1953,105 @@ export default function CitizenDashboard() {
         );
       })()}
 
-      {/* ── Overview Stats ── */}
-      <div className="citizen-overview">
-        <div className="public-stat">
-          <span>{t('citizen_works_found')}</span>
-          <b>{filtered.length}</b>
-          <small>{t('citizen_works_found_sub')}</small>
-        </div>
-        <div className="public-stat">
-          <span>{t('citizen_completed_stat')}</span>
-          <b>
-            {
-              filtered.filter(
-                (p) => p.status === 'completed' || p.audit_status === 'RESOLVED_AUDITED' || (p.physicalProgress ?? p.reported_progress_pct) === 100
-              ).length
-            }
-          </b>
-          <small>{t('citizen_completed_stat_sub')}</small>
-        </div>
-        <div className="public-stat">
-          <span>{t('citizen_ongoing_stat')}</span>
-          <b>
-            {
-              filtered.filter(
-                (p) =>
-                  p.status !== 'completed' &&
-                  p.audit_status !== 'RESOLVED_AUDITED' &&
-                  (p.physicalProgress ?? p.reported_progress_pct ?? 0) < 100
-              ).length
-            }
-          </b>
-          <small>{t('citizen_ongoing_stat_sub')}</small>
-        </div>
-        <div className="public-stat">
-          <span>{t('citizen_evidence_stat')}</span>
-          <b>
-            {filtered.length > 0
-              ? `${Math.round(
-                  (filtered.filter((p) => (p.composite_risk_score ?? p.riskScore ?? 0) < 60).length /
-                    filtered.length) *
-                    100
-                )}%`
-              : '85%'}
-          </b>
-          <small>{t('citizen_evidence_stat_sub')}</small>
-        </div>
-      </div>
-
-      {/* ── Journey + Observation ── */}
-      <div className="citizen-cards">
-        <section className="panel">
-          <div className="panel-head">
-            <div>
-              <span className="eyebrow">{t('citizen_journey_eyebrow')}</span>
-              <h3>{t('citizen_journey_title')}</h3>
+      {/* ── Overview Stats & Journey: Render only on Global Dashboard view (NOT when viewing an individual Project Detail) ── */}
+      {!selectedProject && (
+        <>
+          <div className="citizen-overview">
+            <div className="public-stat">
+              <span>{t('citizen_works_found')}</span>
+              <b>{filtered.length}</b>
+              <small>{t('citizen_works_found_sub')}</small>
             </div>
-            <ShieldCheck size={18} />
+            <div className="public-stat">
+              <span>{t('citizen_completed_stat')}</span>
+              <b>
+                {
+                  filtered.filter(
+                    (p) => p.status === 'completed' || p.audit_status === 'RESOLVED_AUDITED' || (p.physicalProgress ?? p.reported_progress_pct) === 100
+                  ).length
+                }
+              </b>
+              <small>{t('citizen_completed_stat_sub')}</small>
+            </div>
+            <div className="public-stat">
+              <span>{t('citizen_ongoing_stat')}</span>
+              <b>
+                {
+                  filtered.filter(
+                    (p) =>
+                      p.status !== 'completed' &&
+                      p.audit_status !== 'RESOLVED_AUDITED' &&
+                      (p.physicalProgress ?? p.reported_progress_pct ?? 0) < 100
+                  ).length
+                }
+              </b>
+              <small>{t('citizen_ongoing_stat_sub')}</small>
+            </div>
+            <div className="public-stat">
+              <span>{t('citizen_evidence_stat')}</span>
+              <b>
+                {filtered.length > 0
+                  ? `${Math.round(
+                      (filtered.filter((p) => (p.composite_risk_score ?? p.riskScore ?? 0) < 60).length /
+                        filtered.length) *
+                        100
+                    )}%`
+                  : '85%'}
+              </b>
+              <small>{t('citizen_evidence_stat_sub')}</small>
+            </div>
           </div>
-          <div className="journey">
-            <span className="done">{t('citizen_journey_recommended')}</span>
-            <i>→</i>
-            <span className="done">{t('citizen_journey_sanctioned')}</span>
-            <i>→</i>
-            <span className="done">{t('citizen_journey_started')}</span>
-            <i>→</i>
-            <span>{t('citizen_journey_progress')}</span>
-            <i>→</i>
-            <span>{t('citizen_journey_completed')}</span>
-            <i>→</i>
-            <span>{t('citizen_journey_verified')}</span>
-          </div>
-        </section>
 
-        <section className="panel observation-card" id="report-observation">
-          <div>
-            <span className="eyebrow">{t('citizen_observation_eyebrow')}</span>
-            <h3>{t('citizen_observation_title')}</h3>
-            <p>{t('citizen_observation_body')}</p>
+          {/* ── Journey + Observation ── */}
+          <div className="citizen-cards">
+            <section className="panel">
+              <div className="panel-head">
+                <div>
+                  <span className="eyebrow">{t('citizen_journey_eyebrow')}</span>
+                  <h3>{t('citizen_journey_title')}</h3>
+                </div>
+                <ShieldCheck size={18} />
+              </div>
+              <div className="journey">
+                <span className="done">{t('citizen_journey_recommended')}</span>
+                <i>→</i>
+                <span className="done">{t('citizen_journey_sanctioned')}</span>
+                <i>→</i>
+                <span className="done">{t('citizen_journey_started')}</span>
+                <i>→</i>
+                <span>{t('citizen_journey_progress')}</span>
+                <i>→</i>
+                <span>{t('citizen_journey_completed')}</span>
+                <i>→</i>
+                <span>{t('citizen_journey_verified')}</span>
+              </div>
+            </section>
+
+            <section className="panel observation-card" id="report-observation">
+              <div>
+                <span className="eyebrow">{t('citizen_observation_eyebrow')}</span>
+                <h3>{t('citizen_observation_title')}</h3>
+                <p>{t('citizen_observation_body')}</p>
+              </div>
+              <button
+                type="button"
+                className="primary-action"
+                onClick={() => {
+                  const target = selectedProject || selectedProjectForDetails || filtered[0];
+                  if (target) {
+                    setSelectedProject(target);
+                    setGrievanceOpen(true);
+                  } else {
+                    setActiveTab('search');
+                  }
+                }}
+              >
+                {t('citizen_report_btn')} <ArrowRight size={15} />
+              </button>
+            </section>
           </div>
-          <button
-            type="button"
-            className="primary-action"
-            onClick={() => {
-              const target = selectedProject || selectedProjectForDetails || filtered[0];
-              if (target) {
-                setSelectedProject(target);
-                setGrievanceOpen(true);
-              } else {
-                setActiveTab('search');
-              }
-            }}
-          >
-            {t('citizen_report_btn')} <ArrowRight size={15} />
-          </button>
-        </section>
-      </div>
+        </>
+      )}
 
       {/* ── Grievance Modal ── */}
       {grievanceOpen && (selectedProject || selectedProjectForDetails) && (
