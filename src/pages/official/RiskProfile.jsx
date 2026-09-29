@@ -30,20 +30,23 @@ import { useAuth } from '../../contexts/AuthContext';
 export default function RiskProfile() {
   const { id = 'PRJ002' } = useParams();
   const navigate = useNavigate();
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
+  const hi = lang === 'hi';
   const { user } = useAuth();
-  const { attachNode } = useCaseContext();
+  const { attachNode, projects: cloudProjects } = useCaseContext();
+
+  const allProjects = (cloudProjects && cloudProjects.length > 0) ? cloudProjects : projects;
 
   const p =
-    projects.find((x) => x.id.toUpperCase() === (id || '').toUpperCase()) ||
-    projects.find((x) => x.id === 'PRJ002') ||
-    projects[0];
+    allProjects.find((x) => (x.id || x.work_id || '').toUpperCase() === (id || '').toUpperCase()) ||
+    allProjects.find((x) => (x.id || x.work_id) === 'PRJ002') ||
+    allProjects[0];
 
   const risk = calculateRiskScore(p);
   const agency = agencies.find((a) => a.id === p.agency);
 
-  const reportedProgress = p.physicalProgress ?? 75;
-  const aiVisualEstimate = p.estimatedSiteProgress ?? (p.isAnomaly ? Math.max(20, reportedProgress - 20) : reportedProgress);
+  const reportedProgress = p.reported_progress_pct ?? p.physicalProgress ?? 75;
+  const aiVisualEstimate = p.ai_visual_estimate_pct ?? p.estimatedSiteProgress ?? (p.isAnomaly ? Math.max(20, reportedProgress - 20) : reportedProgress);
   const discrepancy = Math.abs(reportedProgress - aiVisualEstimate);
 
   const [node, setNode] = useState('Project');
@@ -292,6 +295,237 @@ export default function RiskProfile() {
       <div className="risk-layout">
 
         <main>
+
+          {/* ── PROGRESS DISCREPANCY AUDIT PANEL ── */}
+          <section
+            className="panel progress-discrepancy-panel p-6"
+            style={{
+              padding: '24px',
+              marginBottom: '24px',
+              borderRadius: '12px',
+              border: discrepancy > 10 ? '1px solid #fed7aa' : '1px solid var(--border)',
+              background: 'var(--surface)',
+            }}
+          >
+            <div
+              className="panel-head"
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '16px',
+                flexWrap: 'wrap',
+                gap: '10px',
+              }}
+            >
+              <div>
+                <span className="eyebrow" style={{ fontSize: '11px', letterSpacing: '0.05em', color: 'var(--brand)', fontWeight: 700 }}>
+                  {hi ? 'भौतिक बनाम उपग्रह साक्ष्य विश्लेषण' : 'PHYSICAL VS SATELLITE EVIDENCE AUDIT'}
+                </span>
+                <h3 style={{ margin: '4px 0 0', fontSize: '1.2rem', fontWeight: 700, color: 'var(--ink)' }}>
+                  {hi ? 'कार्य प्रगति विसंगति विश्लेषण' : 'Milestone Progress & AI Verification Audit'}
+                </h3>
+              </div>
+
+              {discrepancy > 10 ? (
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    background: '#fef3c7',
+                    color: '#92400e',
+                    border: '1px solid #fde68a',
+                    padding: '6px 14px',
+                    borderRadius: '8px',
+                    fontSize: '0.85rem',
+                    fontWeight: 700,
+                  }}
+                >
+                  ⚠️ Potential Progress Mismatch ({discrepancy}% Gap)
+                </span>
+              ) : (
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    background: '#ecfdf5',
+                    color: '#065f46',
+                    border: '1px solid #a7f3d0',
+                    padding: '6px 14px',
+                    borderRadius: '8px',
+                    fontSize: '0.85rem',
+                    fontWeight: 700,
+                  }}
+                >
+                  <CheckCircle2 size={16} /> Progress Verified & Concordant
+                </span>
+              )}
+            </div>
+
+            {/* Side-by-side Progress Bars */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+                gap: '20px',
+                marginTop: '16px',
+              }}
+            >
+              {/* Reported Progress Card */}
+              <div
+                style={{
+                  background: 'var(--bg-subtle, #fafaf9)',
+                  padding: '18px',
+                  borderRadius: '10px',
+                  border: '1px solid var(--line)',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--muted)' }}>
+                    {hi ? 'दर्ज भौतिक प्रगति (eSAKSHI पोर्टल)' : 'Reported Progress (eSAKSHI Portal)'}
+                  </span>
+                  <strong style={{ fontSize: '1.25rem', fontWeight: 800, color: '#2563eb' }}>
+                    {reportedProgress}%
+                  </strong>
+                </div>
+                <div style={{ height: '12px', background: 'var(--line)', borderRadius: '999px', overflow: 'hidden' }}>
+                  <div
+                    style={{
+                      width: `${Math.min(100, Math.max(0, reportedProgress))}%`,
+                      height: '100%',
+                      background: '#2563eb',
+                      borderRadius: '999px',
+                      transition: 'width 0.6s ease',
+                    }}
+                  />
+                </div>
+                <small style={{ display: 'block', marginTop: '8px', color: 'var(--muted)', fontSize: '0.78rem', lineHeight: 1.4 }}>
+                  {hi ? 'कार्यकारी एजेंसी द्वारा आधिकारिक बिलिंग प्रविष्टि में दावा' : 'Contractor certified completion milestone claimed in official records'}
+                </small>
+              </div>
+
+              {/* AI Visual Estimate Card */}
+              <div
+                style={{
+                  background: 'var(--bg-subtle, #fafaf9)',
+                  padding: '18px',
+                  borderRadius: '10px',
+                  border: '1px solid var(--line)',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--muted)' }}>
+                    {hi ? 'एआई विजुअल अनुमान (सैटेलाइट / जियोटैग)' : 'AI Visual Estimate (Satellite & Geotag Ingestion)'}
+                  </span>
+                  <strong
+                    style={{
+                      fontSize: '1.25rem',
+                      fontWeight: 800,
+                      color: discrepancy > 10 ? '#ea580c' : '#059669',
+                    }}
+                  >
+                    {aiVisualEstimate}%
+                  </strong>
+                </div>
+                <div style={{ height: '12px', background: 'var(--line)', borderRadius: '999px', overflow: 'hidden' }}>
+                  <div
+                    style={{
+                      width: `${Math.min(100, Math.max(0, aiVisualEstimate))}%`,
+                      height: '100%',
+                      background: discrepancy > 10 ? '#ea580c' : '#059669',
+                      borderRadius: '999px',
+                      transition: 'width 0.6s ease',
+                    }}
+                  />
+                </div>
+                <small style={{ display: 'block', marginTop: '8px', color: 'var(--muted)', fontSize: '0.78rem', lineHeight: 1.4 }}>
+                  {hi ? 'जियोटैग्ड साक्ष्य एवं रिमोट सेंसिंग द्वारा स्वचालित सत्यापन' : 'Computer-vision photogrammetry analysis of geotagged site captures'}
+                </small>
+              </div>
+            </div>
+
+            {/* Comparative Gap Visualizer */}
+            <div
+              style={{
+                marginTop: '20px',
+                padding: '18px',
+                borderRadius: '10px',
+                background: discrepancy > 10 ? 'rgba(234, 88, 12, 0.05)' : 'rgba(5, 150, 105, 0.05)',
+                border: discrepancy > 10 ? '1px solid rgba(234, 88, 12, 0.25)' : '1px solid rgba(5, 150, 105, 0.25)',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
+                <span style={{ fontSize: '0.9rem', fontWeight: 700, color: discrepancy > 10 ? '#9a3412' : '#065f46' }}>
+                  {discrepancy > 10
+                    ? `⚠️ Potential Progress Mismatch: ${discrepancy}% Execution Gap Detected`
+                    : '✓ Physical & Reported Milestones Concordant'}
+                </span>
+                <span style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>
+                  {hi ? 'फील्ड जांच दल द्वारा निरीक्षण अनुशंसित' : 'Field Inspection Recommended Prior to Next Disbursement'}
+                </span>
+              </div>
+
+              {/* Dual Progress Visualizer Track */}
+              <div style={{ position: 'relative', height: '18px', background: 'var(--line)', borderRadius: '999px', overflow: 'hidden' }}>
+                {/* Reported Bar Base */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: 0,
+                    top: 0,
+                    height: '100%',
+                    width: `${Math.min(100, Math.max(0, reportedProgress))}%`,
+                    background: 'rgba(37, 99, 235, 0.25)',
+                    borderRadius: '999px',
+                  }}
+                />
+                {/* Verified Visual Bar */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: 0,
+                    top: 0,
+                    height: '100%',
+                    width: `${Math.min(100, Math.max(0, aiVisualEstimate))}%`,
+                    background: '#059669',
+                    borderRadius: '999px',
+                  }}
+                />
+                {/* Gap Striped Fill */}
+                {discrepancy > 0 && reportedProgress > aiVisualEstimate && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      left: `${aiVisualEstimate}%`,
+                      top: 0,
+                      height: '100%',
+                      width: `${discrepancy}%`,
+                      background: 'repeating-linear-gradient(45deg, #ea580c, #ea580c 4px, #f97316 4px, #f97316 8px)',
+                      opacity: 0.9,
+                    }}
+                  />
+                )}
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '10px', fontSize: '0.78rem', color: 'var(--muted)', flexWrap: 'wrap', gap: '6px' }}>
+                <span>0% Handover Start</span>
+                <span style={{ color: '#059669', fontWeight: 700 }}>■ Verified Physical ({aiVisualEstimate}%)</span>
+                {discrepancy > 0 && reportedProgress > aiVisualEstimate && (
+                  <span style={{ color: '#ea580c', fontWeight: 700 }}>■ Mismatch Gap ({discrepancy}%)</span>
+                )}
+                <span style={{ color: '#2563eb', fontWeight: 700 }}>■ Reported Milestone ({reportedProgress}%)</span>
+                <span>100% Final Handover</span>
+              </div>
+
+              <p style={{ margin: '12px 0 0', fontSize: '0.8rem', color: 'var(--muted)', lineHeight: 1.55 }}>
+                {hi
+                  ? 'सूचना: यह एआई विजुअल अनुमान एक विश्लेषणात्मक जोखिम संकेत है। यह अंतिम निष्कर्ष नहीं है। अधिकृत पर्यवेक्षक द्वारा भौतिक सत्यापन के उपरांत ही अंतिम स्थिति निर्धारित होगी।'
+                  : 'Notice: AI visual estimates serve as early risk signals to prioritize field audit resources. They do not constitute a legal determination of irregularity until corroborated by authorized on-site physical measurement.'}
+              </p>
+            </div>
+          </section>
 
           {/* SIGNAL BREAKDOWN */}
           <section className="panel p-6" style={{ padding: '24px' }}>

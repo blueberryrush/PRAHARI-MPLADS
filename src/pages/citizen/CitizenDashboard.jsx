@@ -1419,6 +1419,11 @@ export default function CitizenDashboard() {
                             <span>
                               {progressPct}% {t('common_physical').toLowerCase()} {t('common_progress').toLowerCase()}
                             </span>
+                            {Number(p.progress_discrepancy_points) > 10 && (
+                              <span style={{ color: '#c2410c', fontWeight: 600 }}>
+                                {hi ? 'विसंगति संकेत' : 'Discrepancy Signal'}
+                              </span>
+                            )}
                             {p.estimatedSiteProgress != null && p.estimatedSiteProgress !== progressPct && (
                               <span style={{ color: '#c2410c', fontWeight: 600 }}>
                                 AI Est: {p.estimatedSiteProgress}%
@@ -1430,11 +1435,13 @@ export default function CitizenDashboard() {
                         {/* Card Action Buttons */}
                         <div style={{ display: 'flex', gap: 6, marginTop: 4, paddingTop: 10, borderTop: '1px solid var(--line)' }}>
                           <button
+                            type="button"
                             className="primary-action"
                             style={{ flex: 1, height: 32, fontSize: 10, background: '#059669', borderColor: '#059669' }}
                             onClick={(e) => {
                               e.stopPropagation();
                               selectProjectWithReset(p);
+                              setGrievanceOpen(true);
                             }}
                           >
                             Select & Report

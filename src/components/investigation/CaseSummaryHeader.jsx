@@ -55,6 +55,10 @@ export default function CaseSummaryHeader({
               {p.district}, {p.state} {p.constituency ? `· ${p.constituency}` : ''}
             </span>
             <span className="separator">·</span>
+            <span className="mp-sub">
+              MP: <b>{p.mp || p.mp_name || 'Shri Narendra Modi'}</b>
+            </span>
+            <span className="separator">·</span>
             <span className="agency-sub">
               {t('type_agency')}: <b>{p.agency}</b>
             </span>

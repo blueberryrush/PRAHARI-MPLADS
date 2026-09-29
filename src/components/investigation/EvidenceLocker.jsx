@@ -28,24 +28,31 @@ export default function EvidenceLocker({
 
   // Upload modal form state
   const [evidenceTitle, setEvidenceTitle] = useState('');
-  const [evidenceCategory, setEvidenceCategory] = useState('documents');
+  const [evidenceCategory, setEvidenceCategory] = useState('project_records');
   const [evidenceNotes, setEvidenceNotes] = useState('');
 
   const evidenceList = caseData?.evidenceItems || [];
 
   const categories = [
     { key: 'all', label: 'All Evidence', icon: FolderLock },
-    { key: 'documents', label: t('inv_cat_documents'), icon: FileText },
-    { key: 'field_photos', label: t('inv_cat_field_photos'), icon: Camera },
-    { key: 'gps', label: t('inv_cat_gps'), icon: MapPin },
-    { key: 'payments', label: t('inv_cat_payments'), icon: CreditCard },
-    { key: 'observations', label: t('inv_cat_observations'), icon: ClipboardList },
-    { key: 'citizen', label: t('inv_cat_citizen'), icon: Users },
+    { key: 'project_records', label: 'Project Records', icon: FileText },
+    { key: 'financial_data', label: 'Financial Data', icon: CreditCard },
+    { key: 'site_images', label: 'Site Images', icon: Camera },
+    { key: 'citizen_observations', label: 'Citizen Observations', icon: Users },
   ];
+
+  const normalizeCategory = (cat) => {
+    if (!cat) return 'project_records';
+    if (cat === 'documents' || cat === 'project_records' || cat === 'gps') return 'project_records';
+    if (cat === 'payments' || cat === 'financial_data' || cat === 'financial') return 'financial_data';
+    if (cat === 'field_photos' || cat === 'site_images' || cat === 'photos') return 'site_images';
+    if (cat === 'citizen' || cat === 'citizen_observations' || cat === 'observations') return 'citizen_observations';
+    return 'project_records';
+  };
 
   const filteredEvidence = activeTab === 'all'
     ? evidenceList
-    : evidenceList.filter((e) => e.category === activeTab);
+    : evidenceList.filter((e) => normalizeCategory(e.category) === activeTab);
 
   const handleUploadSubmit = (e) => {
     e.preventDefault();
@@ -205,12 +212,10 @@ export default function EvidenceLocker({
                   value={evidenceCategory}
                   onChange={(e) => setEvidenceCategory(e.target.value)}
                 >
-                  <option value="documents">{t('inv_cat_documents')}</option>
-                  <option value="field_photos">{t('inv_cat_field_photos')}</option>
-                  <option value="gps">{t('inv_cat_gps')}</option>
-                  <option value="payments">{t('inv_cat_payments')}</option>
-                  <option value="observations">{t('inv_cat_observations')}</option>
-                  <option value="citizen">{t('inv_cat_citizen')}</option>
+                  <option value="project_records">Project Records (DPR, Sanction Order, Work Order)</option>
+                  <option value="financial_data">Financial Data (PFMS Vouchers, MB-42, UCs)</option>
+                  <option value="site_images">Site Images (Drone / Satellite / Geo-tagged Photos)</option>
+                  <option value="citizen_observations">Citizen Observations (Public Field Reports, Grievances)</option>
                 </select>
 
                 <label className="field-label">Remarks / Findings from this Document</label>

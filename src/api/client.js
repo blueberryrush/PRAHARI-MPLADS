@@ -3,7 +3,7 @@
  * Connects to FastAPI backend (primary) and Supabase Cloud JS (direct resilient fallback).
  */
 import { supabase } from '../lib/supabase';
-import { projects as fallbackMockProjects } from '../data/mockData';
+import { projects as fallbackMockProjects, constituencyCoords } from '../data/mockData';
 
 const BASE_URL = import.meta.env.VITE_API_URL;
 const TIMEOUT_MS = 15000;
@@ -96,8 +96,8 @@ export function normalizeProject(raw) {
     agency: raw.implementing_agency || raw.agency || 'Nodal Agency',
     implementing_agency: raw.implementing_agency || raw.agency || 'Nodal Agency',
     mp_name: raw.mp_name || 'Hon. Member of Parliament',
-    latitude: Number(raw.latitude) || 25.3176,
-    longitude: Number(raw.longitude) || 82.9739,
+    latitude: Number(raw.latitude) || (constituencyCoords?.[constituency]?.lat || constituencyCoords?.[district]?.lat || 25.3176),
+    longitude: Number(raw.longitude) || (constituencyCoords?.[constituency]?.lng || constituencyCoords?.[district]?.lng || 82.9739),
     isAnomaly: riskScore >= 70 || raw.isAnomaly || false,
     ai_visual_estimate_pct: raw.ai_visual_estimate_pct ?? Math.max(0, physicalProgress - 15),
     progress_discrepancy_points: raw.progress_discrepancy_points ?? (riskScore >= 70 ? 20 : 0),

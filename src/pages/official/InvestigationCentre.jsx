@@ -31,12 +31,15 @@ import { useLanguage } from '../../contexts/LanguageContext';
 
 // Modular Investigation Sub-components
 import CaseSummaryHeader, { getDueDateStatus } from '../../components/investigation/CaseSummaryHeader';
+import InvestigationRiskSummary from '../../components/investigation/InvestigationRiskSummary';
+import InvestigationSignalCards from '../../components/investigation/InvestigationSignalCards';
+import LocationVerificationPanel from '../../components/investigation/LocationVerificationPanel';
+import EvidenceLocker from '../../components/investigation/EvidenceLocker';
+import InvestigationActionPanel from '../../components/investigation/InvestigationActionPanel';
 import WhyFlaggedSection from '../../components/investigation/WhyFlaggedSection';
 import InvestigationBrief from '../../components/investigation/InvestigationBrief';
 import FinancialVerificationPanel from '../../components/investigation/FinancialVerificationPanel';
-import LocationVerificationPanel from '../../components/investigation/LocationVerificationPanel';
 import DuplicateComparisonModal from '../../components/investigation/DuplicateComparisonModal';
-import EvidenceLocker from '../../components/investigation/EvidenceLocker';
 import VerificationChecklistWidget from '../../components/investigation/VerificationChecklistWidget';
 import InvestigationAssignmentModal from '../../components/investigation/InvestigationAssignmentModal';
 import SupervisorReviewPanel from '../../components/investigation/SupervisorReviewPanel';
@@ -85,6 +88,8 @@ export default function InvestigationCentre() {
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
   const [showGVC, setShowGVC] = useState(false);
+  const [showSupervisorReview, setShowSupervisorReview] = useState(false);
+  const [showFieldWorkflow, setShowFieldWorkflow] = useState(false);
 
   // Field Verification Stepper state
   const [fieldStep, setFieldStep] = useState(1);
@@ -291,6 +296,23 @@ export default function InvestigationCentre() {
     );
   };
 
+  const handlePrioritizeCase = () => {
+    advanceStatus(
+      p.id,
+      'QUEUED_FOR_FIELD_INSPECTION',
+      caseData.assignedOfficer || investigatorRole,
+      'investigator',
+      'Case prioritized for statutory field inspection based on multi-signal anomaly triggers.'
+    );
+  };
+
+  const scrollToSection = (sectionId) => {
+    const el = document.getElementById(sectionId);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
   return (
     <div className="page-content investigation-page">
       <CalibrationToast />
@@ -495,447 +517,348 @@ export default function InvestigationCentre() {
             onOpenAssign={() => setShowAssignModal(true)}
           />
 
-          {/* NAVIGATION TABS */}
-          <div className="invest-tabs">
-            <button
-              type="button"
-              className={activeTab === 'overview' ? 'active' : ''}
-              onClick={() => setActiveTab('overview')}
-            >
-              {t('tab_overview')}
+          {/* QUICK ANCHOR SHORTCUT STRIP */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflowX: 'auto', padding: '10px 0', borderBottom: '1px solid var(--line)', marginBottom: 6 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginRight: 4, flexShrink: 0 }}>
+              Dossier Sections:
+            </span>
+            <button type="button" className="link-btn" onClick={() => scrollToSection('section-risk-summary')}>
+              Risk Summary
             </button>
-            <button
-              type="button"
-              className={activeTab === 'financial' ? 'active' : ''}
-              onClick={() => setActiveTab('financial')}
-            >
-              {t('tab_financial')}
+            <span style={{ color: 'var(--line)' }}>·</span>
+            <button type="button" className="link-btn" onClick={() => scrollToSection('section-signals')}>
+              Signal Breakdown
             </button>
-            <button
-              type="button"
-              className={activeTab === 'spatial' ? 'active' : ''}
-              onClick={() => setActiveTab('spatial')}
-            >
-              {t('tab_spatial')}
+            <span style={{ color: 'var(--line)' }}>·</span>
+            <button type="button" className="link-btn" onClick={() => scrollToSection('section-gis-map')}>
+              GIS Verification
             </button>
-            <button
-              type="button"
-              className={activeTab === 'evidence' ? 'active' : ''}
-              onClick={() => setActiveTab('evidence')}
-            >
-              {t('inv_evidence_locker_title')}
+            <span style={{ color: 'var(--line)' }}>·</span>
+            <button type="button" className="link-btn" onClick={() => scrollToSection('section-evidence-vault')}>
+              Evidence Vault
             </button>
-            <button
-              type="button"
-              className={activeTab === 'field' ? 'active' : ''}
-              onClick={() => setActiveTab('field')}
-            >
-              {t('inv_field_eyebrow')}
+            <span style={{ color: 'var(--line)' }}>·</span>
+            <button type="button" className="link-btn" onClick={() => scrollToSection('section-actions')}>
+              Action Panel
             </button>
-            <button
-              type="button"
-              className={activeTab === 'review' ? 'active' : ''}
-              onClick={() => setActiveTab('review')}
-            >
-              {t('inv_supervisor_review_title')}
+            <span style={{ color: 'var(--line)' }}>·</span>
+            <button type="button" className="link-btn" onClick={() => scrollToSection('section-timeline')}>
+              Timeline & Audit
             </button>
-            <button
-              type="button"
-              className={activeTab === 'history' ? 'active' : ''}
-              onClick={() => setActiveTab('history')}
-            >
-              {t('inv_audit_trail_label')}
-            </button>
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, flexShrink: 0 }}>
+              <button
+                type="button"
+                className="secondary-action"
+                style={{ fontSize: 11, padding: '4px 10px', height: 28 }}
+                onClick={() => setShowFieldWorkflow(!showFieldWorkflow)}
+              >
+                <Camera size={13} />
+                <span>{showFieldWorkflow ? 'Hide Field Tool' : 'Field Inspection Stepper'}</span>
+              </button>
+              <button
+                type="button"
+                className="secondary-action"
+                style={{ fontSize: 11, padding: '4px 10px', height: 28 }}
+                onClick={() => setShowSupervisorReview(!showSupervisorReview)}
+              >
+                <FileText size={13} />
+                <span>{showSupervisorReview ? 'Hide Supervisor' : 'Supervisor Review'}</span>
+              </button>
+            </div>
           </div>
 
-          {/* TAB 1: OVERVIEW */}
-          {activeTab === 'overview' && (
-            <div className="workspace-tab-content">
-              {/* 2. WHY WAS THIS CASE FLAGGED? */}
-              <WhyFlaggedSection
-                project={p}
-                risk={risk}
-                onOpenDuplicateModal={() => setShowDuplicateModal(true)}
-                onOpenFinancialDetails={() => setActiveTab('financial')}
-              />
+          {/* 2. RISK SUMMARY */}
+          <section id="section-risk-summary">
+            <InvestigationRiskSummary
+              project={p}
+              risk={risk}
+              caseData={caseData}
+            />
+          </section>
 
-              {/* 3. INVESTIGATION BRIEF */}
-              <InvestigationBrief project={p} />
+          {/* 3. SIGNAL BREAKDOWN (4 CARDS: FINANCIAL, PROGRESS, TIMELINE, SPATIAL) */}
+          <section id="section-signals">
+            <InvestigationSignalCards
+              project={p}
+              caseData={caseData}
+              onOpenDuplicateModal={() => setShowDuplicateModal(true)}
+            />
+          </section>
 
-              {/* 14. ACTIONABLE VERIFICATION CHECKLIST */}
-              <VerificationChecklistWidget
-                caseData={caseData}
-                onToggleCheck={(key, isChecked) =>
-                  updateChecklist(p.id, key, isChecked, investigatorRole)
-                }
-              />
+          {/* 4. PHYSICAL / GIS VERIFICATION (EMBEDDED CIVICMAP) */}
+          <section id="section-gis-map">
+            <LocationVerificationPanel
+              project={p}
+              caseData={caseData}
+              candidateProject={allProjects.find((pr) => pr.id === 'PRJ001') || null}
+              onOpenDuplicateModal={() => setShowDuplicateModal(true)}
+              onStartFieldVerification={() => {
+                setShowFieldWorkflow(true);
+                setFieldStarted(true);
+                setFieldStep(2);
+                scrollToSection('section-field-tool');
+              }}
+            />
+          </section>
 
-              {/* 13. DATA FRESHNESS CARD */}
-              <DataFreshnessCard />
-            </div>
-          )}
-
-          {/* TAB 2: FINANCIAL VERIFICATION */}
-          {activeTab === 'financial' && (
-            <div className="workspace-tab-content">
-              {/* 4. FINANCIAL VERIFICATION PANEL */}
-              <FinancialVerificationPanel project={p} />
-
-              {/* Connected Signals for Financial Context */}
-              <div className="panel sub-panel">
-                <div className="panel-head">
-                  <div>
-                    <span className="eyebrow">PFMS RECONCILIATION DIRECTIVE</span>
-                    <h3>Auditor Guidance on Fund Disbursement</h3>
-                  </div>
+          {/* OPTIONAL FIELD INSPECTION CAMERA STEPPER DRAWER */}
+          {showFieldWorkflow && (
+            <section id="section-field-tool" className="panel field-verification" style={{ padding: '20px 24px', background: '#FAFBF8', border: '2px solid var(--brand)', borderRadius: 14 }}>
+              <div className="panel-head" style={{ marginBottom: 14 }}>
+                <div>
+                  <span className="eyebrow">{t('inv_field_eyebrow')}</span>
+                  <h3>{t('inv_close_loop')}</h3>
+                  <p style={{ fontSize: 13, color: 'var(--muted)', margin: 0 }}>
+                    Mobile on-site photo capture, GPS spoof verification, and statutory inspection checklist.
+                  </p>
                 </div>
-                <p className="panel-sub" style={{ margin: '8px 0' }}>
-                  Under General Financial Rules (GFR), disbursements exceeding ₹10 Lakh beyond administrative sanction require ratification by the District Magistrate. Ensure Measurement Book MB-42 is inspected before approving any additional expenditure claims.
-                </p>
+                <button
+                  type="button"
+                  className="secondary-action"
+                  style={{ fontSize: 11, height: 28 }}
+                  onClick={() => setShowFieldWorkflow(false)}
+                >
+                  Close Drawer ✕
+                </button>
               </div>
-            </div>
-          )}
 
-          {/* TAB 3: LOCATION & SPATIAL VERIFICATION */}
-          {activeTab === 'spatial' && (
-            <div className="workspace-tab-content">
-              {/* 5. LOCATION VERIFICATION PANEL */}
-              <LocationVerificationPanel
-                project={p}
-                caseData={caseData}
-                onStartFieldVerification={() => {
-                  setActiveTab('field');
-                  setFieldStarted(true);
-                  setFieldStep(2);
-                }}
-              />
+              {/* 4-Step Header Bar */}
+              <div className="field-steps">
+                <button
+                  type="button"
+                  className={`field-step ${fieldStep === 1 ? 'active' : ''} ${fieldStep > 1 ? 'completed' : ''}`}
+                  onClick={() => setFieldStep(1)}
+                >
+                  <span>01</span>
+                  <b>{t('inv_step1_title')}</b>
+                  <small>{t('inv_step1_sub')}</small>
+                </button>
 
-              {/* 6. DUPLICATE CANDIDATE COMPARISON TRIGGER CARD */}
-              <section className="panel duplicate-trigger-panel">
-                <div className="panel-head">
-                  <div>
-                    <span className="eyebrow">{t('signal_spatial_name')}</span>
-                    <h3>{t('inv_dup_modal_title')}</h3>
-                    <p className="panel-sub">
-                      Suspected proximity overlap with candidate <b>PRJ001</b> (180m distance).
-                    </p>
+                <button
+                  type="button"
+                  className={`field-step ${fieldStep === 2 ? 'active' : ''} ${fieldStep > 2 ? 'completed' : ''}`}
+                  onClick={() => setFieldStep(2)}
+                >
+                  <span>02</span>
+                  <b>{t('inv_step2_title')}</b>
+                  <small>{t('inv_step2_sub')}</small>
+                </button>
+
+                <button
+                  type="button"
+                  className={`field-step ${fieldStep === 3 ? 'active' : ''} ${fieldStep > 3 ? 'completed' : ''}`}
+                  onClick={() => setFieldStep(3)}
+                >
+                  <span>03</span>
+                  <b>{t('inv_step3_title')}</b>
+                  <small>{t('inv_step3_sub')}</small>
+                </button>
+
+                <button
+                  type="button"
+                  className={`field-step ${fieldStep === 4 ? 'active' : ''}`}
+                  onClick={() => setFieldStep(4)}
+                >
+                  <span>04</span>
+                  <b>{t('inv_step4_title')}</b>
+                  <small>{t('inv_step4_sub')}</small>
+                </button>
+              </div>
+
+              {/* STEP 1: EXPECTED LOCATION */}
+              {fieldStep === 1 && (
+                <div className="step-content-box" style={{ marginTop: 14 }}>
+                  <h4>Step 01: Expected Project Coordinates & Boundary</h4>
+                  <p>
+                    Inspect approved site baseline coordinates from the District Engineering registry.
+                  </p>
+                  <div className="step1-coords-display">
+                    <div>
+                      <span>Latitude:</span> <b>{p.latitude || 25.3176}° N</b>
+                    </div>
+                    <div>
+                      <span>Longitude:</span> <b>{p.longitude || 82.9739}° E</b>
+                    </div>
+                    <div>
+                      <span>Permitted Perimeter:</span> <b>50 meters</b>
+                    </div>
                   </div>
                   <button
                     type="button"
                     className="primary-action"
-                    onClick={() => setShowDuplicateModal(true)}
+                    style={{ marginTop: 12 }}
+                    onClick={() => {
+                      setFieldStarted(true);
+                      setFieldStep(2);
+                    }}
                   >
-                    Compare PRJ001 vs PRJ002 Side-by-Side →
+                    Proceed to Step 02 (Capture Evidence) →
                   </button>
                 </div>
+              )}
 
-                {caseData?.duplicateDecision && (
-                  <div className="decision-recorded-box">
-                    <CheckCircle2 size={16} className="text-brand" />
-                    <span>
-                      Adjudication Recorded on Docket:{' '}
-                      <b>{caseData.duplicateDecision.replace('_', ' ').toUpperCase()}</b>
-                    </span>
-                  </div>
-                )}
-              </section>
-            </div>
-          )}
-
-          {/* TAB 4: EVIDENCE LOCKER */}
-          {activeTab === 'evidence' && (
-            <div className="workspace-tab-content">
-              {/* 7. EVIDENCE LOCKER (6 CATEGORIES) */}
-              <EvidenceLocker
-                caseData={caseData}
-                onAddEvidence={(item) =>
-                  addEvidenceItem(p.id, item, investigatorRole)
-                }
-              />
-            </div>
-          )}
-
-          {/* TAB 5: FIELD VERIFICATION WORKFLOW (4 STEPS) */}
-          {activeTab === 'field' && (
-            <div className="workspace-tab-content">
-              <section className="panel field-verification">
-                <div className="panel-head">
-                  <div>
-                    <span className="eyebrow">{t('inv_field_eyebrow')}</span>
-                    <h3>{t('inv_close_loop')}</h3>
-                  </div>
-                  <span className="field-badge">
-                    <MapPin size={14} />
-                    {t('inv_mobile_ready')}
-                  </span>
-                </div>
-
-                {/* 4-Step Header Bar */}
-                <div className="field-steps">
-                  <button
-                    type="button"
-                    className={`field-step ${fieldStep === 1 ? 'active' : ''} ${fieldStep > 1 ? 'completed' : ''}`}
-                    onClick={() => setFieldStep(1)}
-                  >
-                    <span>01</span>
-                    <b>{t('inv_step1_title')}</b>
-                    <small>{t('inv_step1_sub')}</small>
-                  </button>
-
-                  <button
-                    type="button"
-                    className={`field-step ${fieldStep === 2 ? 'active' : ''} ${fieldStep > 2 ? 'completed' : ''}`}
-                    onClick={() => setFieldStep(2)}
-                  >
-                    <span>02</span>
-                    <b>{t('inv_step2_title')}</b>
-                    <small>{t('inv_step2_sub')}</small>
-                  </button>
-
-                  <button
-                    type="button"
-                    className={`field-step ${fieldStep === 3 ? 'active' : ''} ${fieldStep > 3 ? 'completed' : ''}`}
-                    onClick={() => setFieldStep(3)}
-                  >
-                    <span>03</span>
-                    <b>{t('inv_step3_title')}</b>
-                    <small>{t('inv_step3_sub')}</small>
-                  </button>
-
-                  <button
-                    type="button"
-                    className={`field-step ${fieldStep === 4 ? 'active' : ''}`}
-                    onClick={() => setFieldStep(4)}
-                  >
-                    <span>04</span>
-                    <b>{t('inv_step4_title')}</b>
-                    <small>{t('inv_step4_sub')}</small>
-                  </button>
-                </div>
-
-                {/* STEP 1: EXPECTED LOCATION */}
-                {fieldStep === 1 && (
-                  <div className="step-content-box">
-                    <h4>Step 01: Expected Project Coordinates & Boundary</h4>
-                    <p>
-                      Inspect approved site baseline coordinates from the District Engineering registry. When field inspection begins, GPS drift from this point will be calculated.
-                    </p>
-                    <div className="step1-coords-display">
+              {/* STEP 2: CAPTURE EVIDENCE */}
+              {fieldStep === 2 && (
+                <div className="step-content-box" style={{ marginTop: 14 }}>
+                  <h4>Step 02: Capture Geotagged Field Evidence</h4>
+                  <p>
+                    Activate device camera to capture timestamped, geotagged on-site reality.
+                  </p>
+                  {caseData?.capturedEvidence ? (
+                    <div className="captured-preview-box" style={{ marginBottom: 12 }}>
+                      <CheckCircle2 size={16} className="text-brand" />
                       <div>
-                        <span>Latitude:</span> <b>{p.latitude || 25.3176}° N</b>
-                      </div>
-                      <div>
-                        <span>Longitude:</span> <b>{p.longitude || 82.9739}° E</b>
-                      </div>
-                      <div>
-                        <span>Permitted Perimeter:</span> <b>50 meters</b>
+                        <b>Geotagged Photo Captured</b>
+                        <small>
+                          Drift: {caseData.capturedEvidence.spatialDriftMeters}m · Timestamp:{' '}
+                          {caseData.capturedEvidence.capturedAt}
+                        </small>
                       </div>
                     </div>
+                  ) : null}
+                  <div className="action-row" style={{ display: 'flex', gap: 10 }}>
                     <button
                       type="button"
                       className="primary-action"
-                      onClick={() => {
-                        setFieldStarted(true);
-                        setFieldStep(2);
-                      }}
+                      onClick={() => setShowGVC(true)}
                     >
-                      Proceed to Step 02 (Capture Evidence) →
+                      <Camera size={15} />
+                      Launch Camera / Ground Verification Tool
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary-action"
+                      onClick={() => setFieldStep(3)}
+                    >
+                      Proceed to Step 03 (Checklist) →
                     </button>
                   </div>
-                )}
+                </div>
+              )}
 
-                {/* STEP 2: CAPTURE EVIDENCE */}
-                {fieldStep === 2 && (
-                  <div className="step-content-box">
-                    <h4>Step 02: Capture Geotagged Field Evidence</h4>
-                    <p>
-                      Activate device camera to capture timestamped, geotagged on-site reality. Evidence is run through offline spoof-detection and attached to the case dossier.
-                    </p>
-                    {caseData?.capturedEvidence ? (
-                      <div className="captured-preview-box">
-                        <CheckCircle2 size={16} className="text-brand" />
-                        <div>
-                          <b>Geotagged Photo Captured</b>
-                          <small>
-                            Drift: {caseData.capturedEvidence.spatialDriftMeters}m · Timestamp:{' '}
-                            {caseData.capturedEvidence.capturedAt}
-                          </small>
+              {/* STEP 3: VERIFY CHECKLIST */}
+              {fieldStep === 3 && (
+                <div className="step-content-box" style={{ marginTop: 14 }}>
+                  <h4>Step 03: Mandatory 6-Item Field Inspection Checklist</h4>
+                  <p>
+                    Inspectors must review each field parameter before recording final determination.
+                  </p>
+
+                  <div className="field-checklist-items">
+                    {fieldChecklistItems.map((item) => {
+                      const checked = !!fieldChecklist[item.key];
+                      return (
+                        <div
+                          key={item.key}
+                          className={`field-check-row ${checked ? 'checked' : ''}`}
+                          onClick={() => handleToggleFieldCheck(item.key)}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => handleToggleFieldCheck(item.key)}
+                          />
+                          <span>{item.label}</span>
                         </div>
-                      </div>
-                    ) : null}
-                    <div className="action-row">
-                      <button
-                        type="button"
-                        className="primary-action"
-                        onClick={() => setShowGVC(true)}
-                      >
-                        <Camera size={15} />
-                        Launch Camera / Ground Verification Tool
-                      </button>
-                      <button
-                        type="button"
-                        className="secondary-action"
-                        onClick={() => setFieldStep(3)}
-                      >
-                        Proceed to Step 03 (Checklist) →
-                      </button>
-                    </div>
+                      );
+                    })}
                   </div>
-                )}
 
-                {/* STEP 3: VERIFY CHECKLIST */}
-                {fieldStep === 3 && (
-                  <div className="step-content-box">
-                    <h4>Step 03: Mandatory 6-Item Field Inspection Checklist</h4>
-                    <p>
-                      Investigators must review each field parameter. All 6 items must be verified before the case can be marked "Verified / Legitimate".
-                    </p>
-
-                    <div className="field-checklist-items">
-                      {fieldChecklistItems.map((item) => {
-                        const checked = !!fieldChecklist[item.key];
-                        return (
-                          <div
-                            key={item.key}
-                            className={`field-check-row ${checked ? 'checked' : ''}`}
-                            onClick={() => handleToggleFieldCheck(item.key)}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={() => handleToggleFieldCheck(item.key)}
-                            />
-                            <span>{item.label}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    <div className="action-row" style={{ marginTop: 14 }}>
-                      <button
-                        type="button"
-                        className="primary-action"
-                        onClick={() => setFieldStep(4)}
-                      >
-                        Proceed to Step 04 (Record Outcome) →
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* STEP 4: RECORD OUTCOME */}
-                {fieldStep === 4 && (
-                  <div className="step-content-box">
-                    <h4>Step 04: Record Field Verification Outcome</h4>
-                    <p>
-                      Select final field determination. Marking "Verified / Legitimate" requires completion of all 6 checklist items in Step 03.
-                    </p>
-
-                    <label className="field-label">Field Determination</label>
-                    <select
-                      className="select wide"
-                      value={fieldOutcome}
-                      onChange={(e) => setFieldOutcome(e.target.value)}
+                  <div className="action-row" style={{ marginTop: 14 }}>
+                    <button
+                      type="button"
+                      className="primary-action"
+                      onClick={() => setFieldStep(4)}
                     >
-                      <option value="">Select an outcome…</option>
-                      <option
-                        value="Verified / Legitimate"
-                        disabled={!allFieldChecksComplete}
-                      >
-                        Verified / Legitimate {!allFieldChecksComplete ? '(Requires all 6 checks)' : ''}
-                      </option>
-                      <option value="Issue Found / Deficiency Noted">
-                        Issue Found / Deficiency Noted
-                      </option>
-                      <option value="Insufficient Evidence / Access Obstructed">
-                        Insufficient Evidence / Access Obstructed
-                      </option>
-                    </select>
-
-                    {!allFieldChecksComplete && (
-                      <small className="text-amber" style={{ display: 'block', margin: '4px 0 10px' }}>
-                        ⚠ 6 of 6 checks in Step 03 must be completed to select "Verified / Legitimate".
-                      </small>
-                    )}
-
-                    <label className="field-label">Field Notes & Observations</label>
-                    <textarea
-                      className="note-box"
-                      rows={3}
-                      placeholder="Record verified measurements, culvert dimensions, bitumen thickness, or deficiencies..."
-                      value={fieldRemarks}
-                      onChange={(e) => setFieldRemarks(e.target.value)}
-                    />
-
-                    <div className="action-row" style={{ marginTop: 12 }}>
-                      <button
-                        type="button"
-                        className="primary-action"
-                        disabled={!fieldOutcome || fieldOutcomeRecorded}
-                        onClick={handleRecordFieldOutcome}
-                      >
-                        {fieldOutcomeRecorded ? (
-                          <>
-                            <CheckCircle2 size={15} /> Outcome Recorded on Docket
-                          </>
-                        ) : (
-                          'Save & Record Field Outcome'
-                        )}
-                      </button>
-                    </div>
+                      Proceed to Step 04 (Record Outcome) →
+                    </button>
                   </div>
-                )}
-              </section>
-
-              {/* MODEL FEEDBACK PANEL */}
-              <section className="panel feedback-panel">
-                <MessageSquare size={18} />
-                <div>
-                  <span className="eyebrow">{t('inv_feedback_eyebrow')}</span>
-                  <h3>{t('inv_feedback_title')}</h3>
-                  <p>{t('inv_feedback_sub')}</p>
                 </div>
+              )}
 
-                <div className="feedback-actions">
-                  <button
-                    type="button"
-                    className={feedback === 'Yes' ? 'feedback-selected' : ''}
-                    onClick={() => {
-                      setFeedback('Yes');
-                      recordFeedback(p.id, 'Confirmed Anomaly', p.district || 'Varanasi', 'financial overspend');
-                    }}
+              {/* STEP 4: RECORD OUTCOME */}
+              {fieldStep === 4 && (
+                <div className="step-content-box" style={{ marginTop: 14 }}>
+                  <h4>Step 04: Record Field Verification Outcome</h4>
+                  <p>
+                    Select final field determination. Marking "Verified / Legitimate" requires all 6 checklist items in Step 03.
+                  </p>
+
+                  <label className="field-label">Field Determination</label>
+                  <select
+                    className="select wide"
+                    value={fieldOutcome}
+                    onChange={(e) => setFieldOutcome(e.target.value)}
                   >
-                    {t('inv_feedback_yes')}
-                  </button>
-                  <button
-                    type="button"
-                    className={feedback === 'Partially' ? 'feedback-selected' : ''}
-                    onClick={() => {
-                      setFeedback('Partially');
-                      recordFeedback(p.id, 'Partially Confirmed', p.district || 'Varanasi', 'expenditure timing mismatch');
-                    }}
-                  >
-                    {t('inv_feedback_partially')}
-                  </button>
-                  <button
-                    type="button"
-                    className={feedback === 'No' ? 'feedback-selected' : ''}
-                    onClick={() => {
-                      setFeedback('No');
-                      recordFeedback(p.id, 'False Alarm', p.district || 'Varanasi', 'seasonal roadwork delays');
-                    }}
-                  >
-                    {t('inv_feedback_no')}
-                  </button>
+                    <option value="">Select an outcome…</option>
+                    <option
+                      value="Verified / Legitimate"
+                      disabled={!allFieldChecksComplete}
+                    >
+                      Verified / Legitimate {!allFieldChecksComplete ? '(Requires all 6 checks)' : ''}
+                    </option>
+                    <option value="Issue Found / Deficiency Noted">
+                      Issue Found / Deficiency Noted
+                    </option>
+                    <option value="Insufficient Evidence / Access Obstructed">
+                      Insufficient Evidence / Access Obstructed
+                    </option>
+                  </select>
+
+                  <label className="field-label" style={{ marginTop: 10 }}>Field Notes & Observations</label>
+                  <textarea
+                    className="note-box"
+                    rows={3}
+                    placeholder="Record verified measurements, culvert dimensions, bitumen thickness, or deficiencies..."
+                    value={fieldRemarks}
+                    onChange={(e) => setFieldRemarks(e.target.value)}
+                  />
+
+                  <div className="action-row" style={{ marginTop: 12 }}>
+                    <button
+                      type="button"
+                      className="primary-action"
+                      disabled={!fieldOutcome || fieldOutcomeRecorded}
+                      onClick={handleRecordFieldOutcome}
+                    >
+                      {fieldOutcomeRecorded ? (
+                        <>
+                          <CheckCircle2 size={15} /> Outcome Recorded on Docket
+                        </>
+                      ) : (
+                        'Save & Record Field Outcome'
+                      )}
+                    </button>
+                  </div>
                 </div>
-              </section>
-            </div>
+              )}
+            </section>
           )}
 
-          {/* TAB 6: SUPERVISOR REVIEW & DISPOSITION */}
-          {activeTab === 'review' && (
-            <div className="workspace-tab-content">
-              {/* 11. SUPERVISOR REVIEW PANEL */}
+          {/* 5. EVIDENCE VAULT (4 CATEGORIES) */}
+          <section id="section-evidence-vault">
+            <EvidenceLocker
+              caseData={caseData}
+              onAddEvidence={(item) =>
+                addEvidenceItem(p.id, item, investigatorRole)
+              }
+            />
+          </section>
+
+          {/* 6. ACTION PANEL (3 PROMINENT OPERATIONAL BUTTONS) */}
+          <section id="section-actions">
+            <InvestigationActionPanel
+              project={p}
+              caseData={caseData}
+              investigatorRole={investigatorRole}
+              onPrioritize={handlePrioritizeCase}
+              onOpenAssignModal={() => setShowAssignModal(true)}
+            />
+          </section>
+
+          {/* OPTIONAL SUPERVISOR REVIEW PANEL */}
+          {showSupervisorReview && (
+            <section id="section-supervisor-review">
               <SupervisorReviewPanel
                 project={p}
                 caseData={caseData}
@@ -957,16 +880,16 @@ export default function InvestigationCentre() {
                   );
                 }}
               />
-            </div>
+            </section>
           )}
 
-          {/* TAB 7: TIMELINE & AUDIT TRAIL */}
-          {activeTab === 'history' && (
-            <div className="workspace-tab-content">
-              {/* 9 & 12. CASE TIMELINE & AUDIT TRAIL */}
-              <CaseTimelineAuditTrail caseData={caseData} project={p} />
-            </div>
-          )}
+          {/* 7. TIMELINE & AUDIT TRAIL */}
+          <section id="section-timeline">
+            <CaseTimelineAuditTrail
+              caseData={caseData}
+              project={p}
+            />
+          </section>
         </main>
       </div>
 

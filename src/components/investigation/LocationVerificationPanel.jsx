@@ -1,10 +1,13 @@
-import React from 'react';
-import { MapPin, Navigation, Compass, AlertTriangle, CheckCircle2, XCircle, ArrowRight } from 'lucide-react';
+import React, { useMemo } from 'react';
+import { MapPin, Navigation, Compass, AlertTriangle, CheckCircle2, XCircle, ArrowRight, Layers, Copy } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
+import CivicMap from '../map/CivicMap';
 
 export default function LocationVerificationPanel({
   project,
   caseData,
+  candidateProject,
+  onOpenDuplicateModal,
   onStartFieldVerification,
 }) {
   const { t } = useLanguage();
@@ -19,6 +22,31 @@ export default function LocationVerificationPanel({
   const obsLat = captured?.coordinates?.lat || (expLat + 0.0022);
   const obsLng = captured?.coordinates?.lng || (expLng + 0.0018);
   const driftMeters = captured?.spatialDriftMeters || 274;
+
+  const candidate = useMemo(() => {
+    if (candidateProject) return candidateProject;
+    return {
+      id: 'PRJ001',
+      name: 'Construction of 2km Bituminous Road Connecting GT Road',
+      state: p.state || 'Uttar Pradesh',
+      district: p.district || 'Varanasi',
+      constituency: p.constituency || 'Varanasi',
+      sector: 'Roads & Bridges',
+      latitude: expLat + 0.0016,
+      longitude: expLng + 0.0012,
+      sanctionedAmount: 4800000,
+      spentAmount: 4600000,
+      physicalProgress: 95,
+      financialProgress: 96,
+      riskScore: 35,
+      composite_risk_score: 35,
+      isAnomaly: false,
+    };
+  }, [candidateProject, p, expLat, expLng]);
+
+  const mapProjects = useMemo(() => {
+    return [p, candidate].filter(Boolean);
+  }, [p, candidate]);
 
   let locStatus = {
     key: 'inv_loc_review',
@@ -101,38 +129,61 @@ export default function LocationVerificationPanel({
         </div>
       </div>
 
-      {/* Mini Visual Spatial Preview */}
-      <div className="spatial-radar-box">
-        <div className="radar-canvas">
-          <div className="perimeter-circle ring-outer" />
-          <div className="perimeter-circle ring-inner" />
-          <div className="center-pin" title="Expected Baseline Location">
-            <MapPin size={16} />
-            <span>Expected</span>
+      {/* Embedded CivicMap for GIS Verification */}
+      <div className="gis-map-embedded-wrapper" style={{ marginTop: 16, borderRadius: 12, overflow: 'hidden', border: '1px solid var(--line)' }}>
+        <CivicMap
+          projects={mapProjects}
+          initialCenter={{ lat: expLat, lng: expLng }}
+          initialZoom={15}
+          focusedId={p.id}
+          height={340}
+          showFilters={false}
+          title="Physical & GIS Ground Footprint"
+          subtitle={`Centered on approved coordinates (${expLat.toFixed(4)}°N, ${expLng.toFixed(4)}°E) · Candidate PRJ001 shown`}
+        />
+      </div>
+
+      {/* Duplicate Candidate Comparison & Field Actions Bar */}
+      <div className="spatial-actions-banner" style={{ marginTop: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, flexWrap: 'wrap', padding: '14px 18px', background: '#FAFBF8', border: '1px solid var(--line)', borderRadius: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 260 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 8, background: '#F8EAE7', display: 'grid', placeItems: 'center', color: '#C85A32', flexShrink: 0 }}>
+            <Copy size={18} />
           </div>
-          <div
-            className="drift-pin"
-            style={{ transform: 'translate(45px, -35px)' }}
-            title={`Observed Location (${driftMeters}m drift)`}
-          >
-            <Navigation size={15} />
-            <span>Observed ({driftMeters}m)</span>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)' }}>
+              Duplicate Candidate Detected: <b style={{ color: '#C85A32' }}>PRJ001</b> (180m away)
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
+              Suspected proximity overlap: 2km bituminous road connector in same revenue village.
+            </div>
           </div>
         </div>
 
-        <div className="radar-info">
-          <b>Geospatial Perimeter Analysis</b>
-          <p>
-            The observed field point is located <b>{driftMeters}m north-east</b> of the approved work coordinates. While within general village boundary, it borders candidate project <b>PRJ001</b>. Ground inspection is advised to confirm perimeter demarcation.
-          </p>
-          <button
-            type="button"
-            className="primary-action btn-start-field"
-            onClick={onStartFieldVerification}
-          >
-            {t('inv_start_field_verif')}
-            <ArrowRight size={14} />
-          </button>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          {onOpenDuplicateModal && (
+            <button
+              type="button"
+              className="primary-action"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+              onClick={onOpenDuplicateModal}
+            >
+              <Copy size={14} />
+              <span>Compare Candidate Works Side-by-Side</span>
+            </button>
+          )}
+
+          {onStartFieldVerification && (
+            <button
+              type="button"
+              className="secondary-action"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+              onClick={onStartFieldVerification}
+            >
+              <Navigation size={14} />
+              <span>{t('inv_start_field_verif')}</span>
+              <ArrowRight size={13} />
+            </button>
+          )}
         </div>
       </div>
     </section>

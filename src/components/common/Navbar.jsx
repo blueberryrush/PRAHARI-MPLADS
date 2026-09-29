@@ -9,10 +9,7 @@ export default function Navbar() {
   const navigate = useNavigate();
   const { lang, switchLanguage } = useLanguage();
 
-  let caseContext = null;
-  try {
-    caseContext = useCaseContext();
-  } catch {}
+  const caseContext = useCaseContext();
 
   const hi = lang === 'hi';
   const backendStatus = caseContext?.backendStatus || 'cloud_connected';

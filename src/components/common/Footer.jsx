@@ -3,13 +3,7 @@ import { Link } from 'react-router-dom';
 import { useTheme } from '../../contexts/ThemeContext';
 
 const Footer = () => {
-  let isDark = false;
-  try {
-    const themeContext = useTheme();
-    isDark = themeContext?.isDark ?? false;
-  } catch {
-    // fallback if outside context
-  }
+  const { isDark } = useTheme();
 
   return (
     <footer 

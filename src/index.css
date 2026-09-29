@@ -7873,6 +7873,26 @@ small           { font-size: 12px !important; }
   opacity: 0.92;
 }
 
+.investigate-quick-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 9px;
+  border-radius: 6px;
+  background: #C85A32;
+  color: #fff;
+  border: none;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.investigate-quick-btn:hover {
+  opacity: 0.92;
+}
+
 .docket-quick-btn {
   display: inline-flex;
   align-items: center;

@@ -34,10 +34,12 @@ import { useCaseContext } from '../../contexts/CaseContext';
 import CivicMap from '../../components/map/CivicMap';
 import SpeakerButton from '../../components/SpeakerButton';
 import InvestigationAssignmentModal from '../../components/investigation/InvestigationAssignmentModal';
+import FinancialPhysicalProgressChart from '../../components/dashboard/FinancialPhysicalProgressChart';
 import { exportProjectsToCSV, generateEvidenceSummaryText } from '../../utils/reportExport';
 import { calculateRiskScore } from '../../data/aiEngine';
 import { projects as mockProjects, agencies, states } from '../../data/mockData';
 import { formatLakhs, safeNumber } from '../../utils/demoFormat';
+import { getCoordinatesForDistrict } from '../../utils/geo';
 
 // ─── Primary Signal Resolver ──────────────────────────────────────────────────
 function resolvePrimarySignal(p, finProg, physProg) {
@@ -173,6 +175,7 @@ export default function OfficialDashboard() {
         if (activeKpiFilter === 'high' && p.riskScore < 70 && p.review_priority !== 'HIGH_PRIORITY') return false;
         if (activeKpiFilter === 'medium' && (p.riskScore < 40 || p.riskScore >= 70)) return false;
         if (activeKpiFilter === 'active' && (p.work_status === 'Completed' || p.status === 'completed')) return false;
+        if (activeKpiFilter === 'mismatch' && !(p.financialProgress - p.physicalProgress > 20)) return false;
         if (activeKpiFilter === 'verification') {
           const isUnderVerif = ['QUEUED_FOR_FIELD_INSPECTION', 'UNDER_FIELD_INVESTIGATION', 'Field Verification Dispatched', 'Under Review'].includes(auditStatus) || p.riskScore >= 70;
           if (!isUnderVerif) return false;
@@ -241,6 +244,7 @@ export default function OfficialDashboard() {
       return ['QUEUED_FOR_FIELD_INSPECTION', 'UNDER_FIELD_INVESTIGATION', 'Field Verification Dispatched', 'Under Review'].includes(auditStatus) || p.riskScore >= 70;
     }).length;
     const obsCount = complaints ? complaints.length : 0;
+    const mismatchCount = scoredProjects.filter(p => (p.financialProgress - p.physicalProgress) > 20).length;
 
     const exposureLakhs = scoredProjects
       .filter(p => safeNumber(p.riskScore, 0) >= 70)
@@ -253,6 +257,7 @@ export default function OfficialDashboard() {
       mediumPriority: safeNumber(mediumPriority, 0),
       requiringVerif: safeNumber(requiringVerif, 0),
       obsCount: safeNumber(obsCount, 0),
+      mismatchCount: safeNumber(mismatchCount, 0),
       exposureLakhs: safeNumber(exposureLakhs, 0),
     };
   }, [scoredProjects, complaints, getCase]);
@@ -372,6 +377,25 @@ export default function OfficialDashboard() {
     return Array.from(set).sort();
   }, [activePool]);
 
+  // Dynamic Map Center & Zoom based on active geographic drilldown
+  const mapCenter = useMemo(() => {
+    if (selectedDistrict) {
+      const resolved = getCoordinatesForDistrict(selectedDistrict, activePool);
+      if (resolved) return { lat: resolved.lat, lng: resolved.lng };
+    }
+    if (selectedState) {
+      const resolved = getCoordinatesForDistrict(selectedState, activePool);
+      if (resolved) return { lat: resolved.lat, lng: resolved.lng };
+    }
+    return { lat: 22.9734, lng: 78.6569 };
+  }, [selectedDistrict, selectedState, activePool]);
+
+  const mapZoom = useMemo(() => {
+    if (selectedDistrict) return 11;
+    if (selectedState) return 7;
+    return 5;
+  }, [selectedDistrict, selectedState]);
+
   return (
     <div className="page-content command-page overflow-x-hidden">
       {/* ════════════════════════════════════════════════════════════════════════
@@ -441,69 +465,129 @@ export default function OfficialDashboard() {
       </div>
 
       {/* ════════════════════════════════════════════════════════════════════════
-          GEOGRAPHICAL DRILLDOWN CONTROLLER
+          GEOGRAPHICAL DRILLDOWN & JURISDICTION BREADCRUMBS
       ════════════════════════════════════════════════════════════════════════ */}
-      <div className="geographic-drilldown-bar panel">
-        <div className="drilldown-label">
-          <Compass size={16} />
-          <span>{hi ? 'भौगोलिक क्षेत्राधिकार:' : 'Geographic Jurisdiction:'}</span>
-        </div>
-
-        <div className="drilldown-selects flex flex-wrap items-center gap-2 flex-1">
-          {/* State Selector */}
-          <select
-            value={selectedState}
-            onChange={(e) => {
-              setSelectedState(e.target.value);
-              setSelectedDistrict('');
-            }}
-            className="drilldown-dropdown"
-          >
-            <option value="">All India (National View)</option>
-            {states.map(s => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
-
-          {/* District Selector */}
-          <select
-            value={selectedDistrict}
-            onChange={(e) => setSelectedDistrict(e.target.value)}
-            className="drilldown-dropdown"
-          >
-            <option value="">All Districts ({availableDistricts.length})</option>
-            {availableDistricts.map(d => (
-              <option key={d} value={d}>{d}</option>
-            ))}
-          </select>
-
-          {/* Sector Selector */}
-          <select
-            value={selectedSector}
-            onChange={(e) => setSelectedSector(e.target.value)}
-            className="drilldown-dropdown"
-          >
-            <option value="all">All Sectors ({availableSectors.length})</option>
-            {availableSectors.map(sec => (
-              <option key={sec} value={sec}>{sec}</option>
-            ))}
-          </select>
-        </div>
-
-        {(selectedState || selectedDistrict || selectedSector !== 'all' || activeKpiFilter || activeSignalFilter || activeDelayFilter || searchQuery) && (
+      <div className="geographic-drilldown-bar panel" style={{ padding: '14px 18px', background: '#fff', border: '1px solid var(--line)', borderRadius: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {/* Interactive Multi-Level Breadcrumbs */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '12px', flexWrap: 'wrap' }}>
           <button
             type="button"
-            className="drilldown-reset-btn"
+            className="link-btn"
+            style={{ fontWeight: !selectedState ? 800 : 600, color: !selectedState ? 'var(--brand)' : 'var(--muted)', display: 'flex', alignItems: 'center', gap: 4 }}
             onClick={() => {
               setSelectedState('');
               setSelectedDistrict('');
-              handleResetFilters();
             }}
           >
-            <X size={13} />
-            <span>{hi ? 'सभी फ़िल्टर रीसेट' : 'Reset Jurisdiction'}</span>
+            <span>🇮🇳 All India (National)</span>
           </button>
-        )}
+
+          {selectedState && (
+            <>
+              <span style={{ color: 'var(--line)' }}>/</span>
+              <button
+                type="button"
+                className="link-btn"
+                style={{ fontWeight: !selectedDistrict ? 800 : 600, color: !selectedDistrict ? 'var(--brand)' : 'var(--muted)' }}
+                onClick={() => setSelectedDistrict('')}
+              >
+                <span>{selectedState}</span>
+              </button>
+            </>
+          )}
+
+          {selectedDistrict && (
+            <>
+              <span style={{ color: 'var(--line)' }}>/</span>
+              <span style={{ fontWeight: 800, color: 'var(--brand)' }}>
+                {selectedDistrict} District
+              </span>
+            </>
+          )}
+
+          {selectedProjectId && (
+            <>
+              <span style={{ color: 'var(--line)' }}>/</span>
+              <span style={{ fontWeight: 700, color: 'var(--muted)', background: '#FAFBF8', padding: '1px 6px', borderRadius: 4, border: '1px solid var(--line)' }}>
+                Work ID: {selectedProjectId}
+              </span>
+            </>
+          )}
+        </div>
+
+        {/* Dropdowns Row */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '12px', color: 'var(--muted)', fontWeight: 700 }}>
+              <Compass size={15} style={{ color: 'var(--brand)' }} />
+              <span>{hi ? 'क्षेत्राधिकार फ़िल्टर:' : 'Filter Jurisdiction:'}</span>
+            </div>
+
+            {/* State Selector */}
+            <select
+              value={selectedState}
+              onChange={(e) => {
+                setSelectedState(e.target.value);
+                setSelectedDistrict('');
+              }}
+              className="drilldown-dropdown"
+              style={{ padding: '6px 10px', fontSize: '12px', borderRadius: 8, border: '1px solid var(--line)', background: '#FAFBF8', fontWeight: 600 }}
+            >
+              <option value="">All India (National View)</option>
+              {states.map(s => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+
+            {/* District Selector (Synchronously filtered by State) */}
+            <select
+              value={selectedDistrict}
+              onChange={(e) => setSelectedDistrict(e.target.value)}
+              className="drilldown-dropdown"
+              style={{ padding: '6px 10px', fontSize: '12px', borderRadius: 8, border: '1px solid var(--line)', background: '#FAFBF8', fontWeight: 600 }}
+            >
+              <option value="">All Districts ({availableDistricts.length})</option>
+              {availableDistricts.map(d => (
+                <option key={d} value={d}>{d}</option>
+              ))}
+            </select>
+
+            {/* Sector Selector */}
+            <select
+              value={selectedSector}
+              onChange={(e) => setSelectedSector(e.target.value)}
+              className="drilldown-dropdown"
+              style={{ padding: '6px 10px', fontSize: '12px', borderRadius: 8, border: '1px solid var(--line)', background: '#FAFBF8', fontWeight: 600 }}
+            >
+              <option value="all">All Sectors ({availableSectors.length})</option>
+              {availableSectors.map(sec => (
+                <option key={sec} value={sec}>{sec}</option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: '11px', color: 'var(--muted)' }}>
+              Showing <b>{filteredQueue.length}</b> projects in scope
+            </span>
+
+            {(selectedState || selectedDistrict || selectedSector !== 'all' || activeKpiFilter || activeSignalFilter || activeDelayFilter || searchQuery) && (
+              <button
+                type="button"
+                className="drilldown-reset-btn"
+                onClick={() => {
+                  setSelectedState('');
+                  setSelectedDistrict('');
+                  handleResetFilters();
+                }}
+                style={{ padding: '5px 10px', fontSize: '11px', fontWeight: 700 }}
+              >
+                <X size={12} />
+                <span>{hi ? 'सभी फ़िल्टर रीसेट' : 'Reset Jurisdiction'}</span>
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* ════════════════════════════════════════════════════════════════════════
@@ -515,6 +599,7 @@ export default function OfficialDashboard() {
           { key: 'active', count: kpiData.active, label: hi ? 'सक्रिय कार्य' : 'ACTIVE PROJECTS', sub: 'In-progress execution', color: 'teal' },
           { key: 'high', count: kpiData.highPriority, label: hi ? 'उच्च प्राथमिकता' : 'HIGH PRIORITY', sub: 'Risk score ≥ 70 / Anomaly', color: 'critical' },
           { key: 'medium', count: kpiData.mediumPriority, label: hi ? 'मध्यम प्राथमिकता' : 'MEDIUM PRIORITY', sub: 'Watchlist score 40–69', color: 'amber' },
+          { key: 'mismatch', count: kpiData.mismatchCount, label: hi ? 'प्रगति विसंगति' : 'PROGRESS MISMATCH', sub: 'Exp % > Phys % + 20%', color: 'amber' },
           { key: 'verification', count: kpiData.requiringVerif, label: hi ? 'सत्यापन आवश्यक' : 'REQUIRING VERIFICATION', sub: 'Active field investigation', color: 'brand' },
           { key: 'observations', count: kpiData.obsCount, label: hi ? 'नागरिक अवलोकन' : 'CITIZEN OBSERVATIONS', sub: 'Public discrepancy filings', color: 'sage' }
         ].map((item) => {
@@ -690,6 +775,18 @@ export default function OfficialDashboard() {
                           <div className="action-btn-group">
                             <button
                               type="button"
+                              className="investigate-quick-btn"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/official/investigation/${p.id}`);
+                              }}
+                              title="Open 7-Section Investigation Workspace"
+                            >
+                              <ShieldAlert size={12} />
+                              <span>INVESTIGATE</span>
+                            </button>
+                            <button
+                              type="button"
                               className="view-intel-btn"
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -697,7 +794,7 @@ export default function OfficialDashboard() {
                               }}
                               title="Open deep-dive Project Intelligence page"
                             >
-                              <span>VIEW INTELLIGENCE</span>
+                              <span>INTEL</span>
                               <ChevronRight size={13} />
                             </button>
                             <button
@@ -741,7 +838,9 @@ export default function OfficialDashboard() {
 
           <div className="command-map-wrapper">
             <CivicMap
-              projects={scoredProjects}
+              projects={filteredQueue.length > 0 ? filteredQueue : scoredProjects}
+              initialCenter={mapCenter}
+              initialZoom={mapZoom}
               focusedId={selectedProjectId}
               onPinClick={(id) => setSelectedProjectId(id)}
               height={440}
@@ -762,10 +861,20 @@ export default function OfficialDashboard() {
       </div>
 
       {/* ════════════════════════════════════════════════════════════════════════
-          4 & 5 & 6. OPERATIONAL TRI-PANEL: WHY FLAGGED + FINANCIAL PROGRESS + DELAYS
+          4. FINANCIAL VS PHYSICAL PROGRESS COMPREHENSIVE MATRIX
       ════════════════════════════════════════════════════════════════════════ */}
-      <div className="command-secondary-grid">
-        {/* 4. "WHY ARE PROJECTS BEING FLAGGED?" */}
+      <FinancialPhysicalProgressChart
+        projects={scoredProjects}
+        selectedProjectId={selectedProjectId}
+        onSelectProject={setSelectedProjectId}
+        onNavigateToProject={(id) => navigate(`/official/investigation/${id}`)}
+      />
+
+      {/* ════════════════════════════════════════════════════════════════════════
+          5 & 6. OPERATIONAL ANALYTICS: WHY FLAGGED + GESTATION DELAYS
+      ════════════════════════════════════════════════════════════════════════ */}
+      <div className="command-secondary-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))' }}>
+        {/* 5. "WHY ARE PROJECTS BEING FLAGGED?" */}
         <section className="panel why-flagged-panel">
           <div className="panel-head">
             <div>
@@ -801,62 +910,6 @@ export default function OfficialDashboard() {
                 </div>
               );
             })}
-          </div>
-        </section>
-
-        {/* 5. FINANCIAL VS PHYSICAL PROGRESS ANOMALY MATRIX */}
-        <section className="panel progress-matrix-panel">
-          <div className="panel-head">
-            <div>
-              <span className="eyebrow">{hi ? 'व्यय बनाम भौतिक प्रगति' : 'ANOMALY MATRIX'}</span>
-              <h3 style={{ fontSize: '16px', fontWeight: 800, margin: 0 }}>Financial vs Physical Progress</h3>
-              <small style={{ color: 'var(--muted)', fontSize: '11px' }}>Potential financial–physical progress divergence</small>
-            </div>
-            <Activity size={16} style={{ color: '#D97706' }} />
-          </div>
-
-          <div className="progress-comparison-table-wrap">
-            <table className="progress-mini-table">
-              <thead>
-                <tr>
-                  <th>Project</th>
-                  <th>Exp %</th>
-                  <th>Phys %</th>
-                  <th>Gap</th>
-                  <th>Risk Signal Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {scoredProjects.slice(0, 6).map(p => {
-                  const gap = p.financialProgress - p.physicalProgress;
-                  const isSevere = gap > 25;
-                  return (
-                    <tr
-                      key={p.id}
-                      onClick={() => setSelectedProjectId(p.id)}
-                      className={`cursor-pointer ${p.id === selectedProjectId ? 'active-row' : ''}`}
-                    >
-                      <td>
-                        <b className="text-xs">{p.id}</b>
-                        <small className="block text-stone-500 truncate" style={{ maxWidth: '120px' }}>{p.name}</small>
-                      </td>
-                      <td><b>{p.financialProgress}%</b></td>
-                      <td><b>{p.physicalProgress}%</b></td>
-                      <td>
-                        <span className={`gap-badge ${isSevere ? 'critical' : gap > 10 ? 'amber' : 'neutral'}`}>
-                          {gap > 0 ? `+${gap}%` : `${gap}%`}
-                        </span>
-                      </td>
-                      <td>
-                        <span className={`status-pill ${isSevere ? 'danger' : 'safe'}`}>
-                          {isSevere ? 'Requires Verification' : 'Within Tolerance'}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
           </div>
         </section>
 
